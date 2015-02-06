@@ -1,7 +1,8 @@
 from openpyxl import Workbook
 from os.path import curdir
 
-def ex_write(values, names=['col1','col2','col3'],
+
+def ex_write(values, names=['col1', 'col2', 'col3'],
              path='result.xlsx', wsname='Sheet1'):
     wb = Workbook(write_only=True)
     ws = wb.create_sheet()
