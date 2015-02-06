@@ -172,9 +172,12 @@ class BaseClient():
         if self.api_type == "REST":
             self.client.go(url)
             try:
-                return loads(self.client.response.body.decode())
+                return loads(self.client.response.body)
             except Exception:
-                print(self.client.response.body.decode())
+                try:
+                    print(self.client.response.body)
+                except AttributeError:
+                    print(self.client.response.body)
         elif self.api_type == "SOAP":
             rez = self.client.service.__getattr__(url)(**par)
             try:
@@ -293,187 +296,166 @@ class RestClient(BaseClient):
         else:
             return rez
 
+    @decors.total_checker
+    def get_sso(self):
+        url = self.get_link('/sso/list', {'login': self.login})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def get_sso(self):
-    url = self.get_link('/sso/list', {'login': self.login})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_payments_history(self, bdt):
+        '''Returns payment history of phone from `bdt` for the phone'''
+        url = self.get_link('/info/payments/history',
+                            {'ctn': self.ctn, 'dateStart': datetime.now().isoformat() + '+0400'})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def get_blackList_numbers(self):
+        '''Returns phones which in black list'''
+        url = self.get_link('/info/blackList/numbers', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def get_payments_history(self, bdt):
-    '''Returns payment history of phone from `bdt` for the phone'''
-    url = self.get_link('/info/payments/history',
-                        {'ctn': self.ctn, 'dateStart': datetime.now().isoformat() + '+0400'})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_notifications(self):
+        url = self.get_link('/setting/notifications', {})
+        return self.get_rezults(url)
 
-
-@decors.total_checker
-def get_blackList_numbers(self):
-    '''Returns phones which in black list'''
-    url = self.get_link('/info/blackList/numbers', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_notifications(self):
-    url = self.get_link('/setting/notifications', {})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def change_notifications(self, actiontype, email, clear=True):
-    if clear:
-        pass
-    else:
-        url = self.get_link(method_name='/setting/notifications', method_type="PUT",
-                            params={"notifPoints": [{"type": "EMAIL",
-                                                     "value": email,
-                                                     "enabled": "true"}],
-                                    "actionNotifications": [{"actionType": actiontype,
-                                                             "enabled": "true"}]})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_servicers_list(self):
-    '''Returns active services of the phone. Also, returns future-activate services'''
-    url = self.get_link('/info/serviceList', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_request_status(self, requests=None):
-    '''Checking status of requests'''
-    if not requests:
-        if not self.last_request:
-            raise PARAM_ERROR('Нужен номер запроса')
+    @decors.total_checker
+    def change_notifications(self, actiontype, email, clear=True):
+        if clear:
+            pass
         else:
-            requests = self.last_request
-    In = []
-    if type(requests) == type([]):
-        for el in requests:
-            In.append({'requestId': el})
-    else:
-        In.append({'requestId': requests})
+            url = self.get_link(method_name='/setting/notifications', method_type="PUT",
+                                    params={"notifPoints": [{"type": "EMAIL",
+                                                             "value": email,
+                                                             "enabled": "true"}],
+                                            "actionNotifications": [{"actionType": actiontype,
+                                                                     "enabled": "true"}]})
+            return self.get_rezults(url)
 
-    url = self.get_link('/request/list', method_type="PUT", params={'requestList': In})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_servicers_list(self):
+        '''Returns active services of the phone. Also, returns future-activate services'''
+        url = self.get_link('/info/serviceList', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
-
-@decors.total_checker
-def create_detail_request(self, period):
-    '''Creates detail request. Returns requestId'''
-    if not re.search(pattern=r'\d{4}-\d{2}-\d{2}', string=period):
-        if not re.search(pattern=r'\d{2}.\d{2}.\d{4}', string=period):
-            raise PARAM_ERROR('Неверный формат даты, нужен гггг-мм-дд или дд.мм.гггг')
+    @decors.total_checker
+    def get_request_status(self, requests=None):
+        '''Checking status of requests'''
+        if not requests:
+            if not self.last_request:
+                raise PARAM_ERROR('Нужен номер запроса')
+            else:
+                requests = self.last_request
+        In = []
+        if type(requests) == type([]):
+            for el in requests:
+                In.append({'requestId': el})
         else:
-            billDate = datetime.strptime(period, "%d.%m.%Y").isoformat()
-    else:
-        billDate = datetime.strptime(period, "%Y-%m-%d").isoformat()
-    url = self.get_link('/request/postpaidDetail', {'ctn': self.ctn, 'billDate': billDate})
-    return self.get_rezults(url)
+            In.append({'requestId': requests})
+        url = self.get_link('/request/list', method_type="PUT", params={'requestList': In})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def create_detail_request(self, period):
+        '''Creates detail request. Returns requestId'''
+        if not re.search(pattern=r'\d{4}-\d{2}-\d{2}', string=period):
+            if not re.search(pattern=r'\d{2}.\d{2}.\d{4}', string=period):
+                raise PARAM_ERROR('Неверный формат даты, нужен гггг-мм-дд или дд.мм.гггг')
+            else:
+                billDate = datetime.strptime(period, "%d.%m.%Y").isoformat()
+        else:
+            billDate = datetime.strptime(period, "%Y-%m-%d").isoformat()
+        url = self.get_link('/request/postpaidDetail', {'ctn': self.ctn, 'billDate': billDate})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def get_service_params(self, service):
-    '''Returns params of the `service`'''
-    url = self.get_link('/info/serviceParams', {'serviceName': service})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_service_params(self, service):
+        '''Returns params of the `service`'''
+        url = self.get_link('/info/serviceParams', {'serviceName': service})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def activate_service(self, service, effDate=None, expDate=None):
+        '''Activating services. Can insert date of auro-off'''
+        if service == "BL_CPA_22":
+            url = self.get_link('/request/serviceActivate',
+                                    {'ctn': self.ctn, 'serviceName': service,
+                                     'featureParameters': [{
+                                                               'feature': "KKWQPS",
+                                                               'paramName': "WACLID",
+                                                               'paramValue': None}]},
+                                    method_type="PUT")
+        else:
+            url = self.get_link('/request/serviceActivate', {'ctn': self.ctn, 'serviceName': service},
+                                    method_type="PUT")
+        self.get_rezults(url)
 
-@decors.total_checker
-def activate_service(self, service, effDate=None, expDate=None):
-    '''Activating services. Can insert date of auro-off'''
-    if service == "BL_CPA_22":
-        url = self.get_link('/request/serviceActivate',
-                            {'ctn': self.ctn, 'serviceName': service, 'featureParameters': [{
-                                                                                            'feature': "KKWQPS",
-                                                                                            'paramName': "WACLID",
-                                                                                            'paramValue': None}]},
-                            method_type="PUT")
-    else:
-        url = self.get_link('/request/serviceActivate', {'ctn': self.ctn, 'serviceName': service},
-                            method_type="PUT")
-    self.get_rezults(url)
+    @decors.total_checker
+    def get_packs(self):
+        '''Returns current instanse of packs for the phone'''
+        url = self.get_link('/info/rests', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def create_callForwardRequest(self):
+        url = self.get_link('/request/callForward', {'ctn': self.ctn})
+        return self.get_rezults(url)['requestId']
 
-@decors.total_checker
-def get_packs(self):
-    '''Returns current instanse of packs for the phone'''
-    url = self.get_link('/info/rests', {'ctn': self.ctn})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_callForward(self, request):
+        url = self.get_link('/info/callForward', {'requestId': request})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def get_subscriptions(self):
+        url = self.get_link('/info/subscriptions', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def create_callForwardRequest(self):
-    url = self.get_link('/request/callForward', {'ctn': self.ctn})
-    return self.get_rezults(url)['requestId']
-
-
-@decors.total_checker
-def get_callForward(self, request):
-    url = self.get_link('/info/callForward', {'requestId': request})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_subscriptions(self):
-    url = self.get_link('/info/subscriptions', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def remove_subscribtion(self, sId=None, type=None):
-    params = {'ctn': self.ctn}
-    if sId:
-        params['subscriptionId'] = sId
-    if type:
-        params['type'] = type
-    url = self.get_link('/request/subscription/remove', params)
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_balance(self):
-    url = self.get_link('/info/prepaidBalance', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_available_pp(self):
-    url = self.get_link('/info/pricePlanAvailableList', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_packs_prepaid(self):
-    url = self.get_link('/info/prepaidAddBalance', {'ctn': self.ctn})
-    return self.get_rezults(url)
-
-
-@decors.total_checker
-def get_unbilled_balance(self, level='ctn'):
-    if level == 'ctn':
+    @decors.total_checker
+    def remove_subscribtion(self, sId=None, type=None):
         params = {'ctn': self.ctn}
-    elif level == 'ban':
-        params = {'ban': self.ban}
-    url = self.get_link('/info/postpaidBalance', params)
-    return self.get_rezults(url)
+        if sId:
+            params['subscriptionId'] = sId
+        if type:
+            params['type'] = type
+        url = self.get_link('/request/subscription/remove', params)
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def get_balance(self):
+        url = self.get_link('/info/prepaidBalance', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def changePricePlan(self, pp):
-    url = self.get_link('/request/changePricePlan', {'ctn': self.ctn, 'pricePlan': pp})
-    return self.get_rezults(url)
+    @decors.total_checker
+    def get_available_pp(self):
+        url = self.get_link('/info/pricePlanAvailableList', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
+    @decors.total_checker
+    def get_packs_prepaid(self):
+        url = self.get_link('/info/prepaidAddBalance', {'ctn': self.ctn})
+        return self.get_rezults(url)
 
-@decors.total_checker
-def get_prepaid_detail(self, startDate, endDate):
-    url = self.get_link('/request/prepaidDetail', {'ctn': self.ctn,
-                                                   'startDate': startDate,
-                                                   'endDate': endDate,
-                                                   'reportType': 'xls'})
+    @decors.total_checker
+    def get_unbilled_balance(self, level='ctn'):
+        if level == 'ctn':
+            params = {'ctn': self.ctn}
+        elif level == 'ban':
+            params = {'ban': self.ban}
+        url = self.get_link('/info/postpaidBalance', params)
+        return self.get_rezults(url)
+
+    @decors.total_checker
+    def changePricePlan(self, pp):
+        url = self.get_link('/request/changePricePlan', {'ctn': self.ctn, 'pricePlan': pp})
+        return self.get_rezults(url)
+
+    @decors.total_checker
+    def get_prepaid_detail(self, startDate, endDate):
+        url = self.get_link('/request/prepaidDetail', {'ctn': self.ctn,
+                                                           'startDate': startDate,
+                                                           'endDate': endDate,
+                                                           'reportType': 'xls'})
 
 
 class SoapClient(BaseClient):
