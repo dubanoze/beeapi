@@ -19,6 +19,7 @@ def _get_data(num=None, login=None,
     """Method returns login, password, ban and ban_id from eko_DB
     Can getting phone or/and oan
     """
+    pay_type = None
     if not num and not ban and not login:
         raise INIT_ERROR('Ни один обязательный параметр (num,ban,login) не был передан')
     if num:
@@ -72,6 +73,9 @@ class decors():
 
         return wrapper
 
+    def unavailable(func):
+        raise INIT_ERROR('Method unavailable yet')
+
 
 class BaseClient():
     """Base API-Client class"""
@@ -119,8 +123,6 @@ class BaseClient():
 
             if method_type == "GET":
                 link = self.base_url + method_name + _ret(params)
-            elif method_type == "POST":
-                pass
             elif method_type == "PUT":
                 self.client.setup(post=dumps(params).encode())
                 if is_json:
@@ -237,14 +239,14 @@ class RestClient(BaseClient):
         url = self._get_link('/info/serviceAvailableList', {'ctn': self.ctn})
         return self._get_results(url)
 
-
     @decors.total_checker
     def get_sso(self):
         url = self._get_link('/sso/list', {'login': self.login})
         return self._get_results(url)
 
     @decors.total_checker
-    def get_payments_history(self, bdt):
+    @decors.unavailable
+    def get_payments_history(self):
         """Returns payment history of phone from `bdt` for the phone"""
         url = self._get_link('/info/payments/history',
                             {'ctn': self.ctn, 'dateStart': datetime.now().isoformat() + '+0400'})
@@ -262,6 +264,7 @@ class RestClient(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
+    @decors.unavailable
     def change_notifications(self, actiontype, email, clear=True):
         if clear:
             pass
