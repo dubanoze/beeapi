@@ -1,7 +1,5 @@
 from grab import Grab
 from json import loads, dumps
-from xwritter import ex_write
-import os
 from datetime import datetime
 from bill_classes import session, class_getter
 from sqlalchemy.orm.exc import MultipleResultsFound
@@ -28,7 +26,7 @@ def _get_data(num=None, login=None,
         ban, pay_type = session.query(agree_b.oan, agree_b.payment_type).filter(agree_b.i_id == ban_id).one()
 
     if ban:
-        ban_id, pay_type = session.query(agree_b.i_id, agree_b.payment_type).filter(agree_b.oan == ban).one()[0]
+        ban_id, pay_type = session.query(agree_b.i_id, agree_b.payment_type).filter(agree_b.oan == ban).one()
     if ban_id is not None:
 
         query = session.query(account_b.login, account_b.password).filter(account_b.operator_agree == ban_id,
@@ -57,41 +55,20 @@ class decors():
 
         return wrapper
 
-    def total_checker(func, pay_type=None):
+    def total_checker(func):
         """check some things, at first, availability of  login and password, then token.
          At last, decorator check errors of returned result.
 
          Optionally required available pay_type of method"""
 
         def wrapper(self, *args, **kwargs):
-            if self.pay_type != pay_type:
-                raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))
+            #if self.pay_type != pay_type:
+             #   raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))
             if not self.login or not self.password:
                 self.get_account_info()
             if not self.token:
                 self.get_token()
-            rez = func(self, *args, **kwargs)
-            try:
-                if rez['meta']['status'] != 'OK':
-                    if rez['meta']['message'] == 'TOKEN_NOT_FOUND':
-                        self.get_token()
-                        return
-
-                    try:
-                        print('Ошибка при вызове метода {}\n'
-                              '{}\n'
-                              'Параметры: {}'.format(func.__name__, rez['message'], (args, kwargs)))
-                        print(self)
-                    except KeyError:
-                        return rez
-            except (TypeError, AttributeError):
-                if self.api_type == 'REST':
-                    print('Ошибка при вызове метода {}\n'
-                          '{}\n'
-                          'Параметры: {}'.format(func.__name__, rez, (args, kwargs)))
-                else:
-                    pass
-            return rez
+            return func(self, *args, **kwargs)
 
         return wrapper
 
@@ -170,7 +147,10 @@ class BaseClient():
             return loads(self.client.response.body)
         elif self.api_type == "SOAP":
             rez = self.client.service.__getattr__(url)(**par)
-            return [dict(el) for el in rez]
+            if not isinstance(rez, int):
+                return [dict(el) for el in rez]
+            else:
+                return rez
 
     def get_account_info(self):
         """Returns login, password, ban, ban_id from BD for requested Client parameters"""
@@ -226,7 +206,7 @@ class RestClient(BaseClient):
     def get_token(self, opt=1):
         """Returns token, which must requires on all of API methods"""
         url = self._get_link('/auth', {'login': self.login, 'password': self.password})
-        rez = self._get_rezults(url)
+        rez = self._get_results(url)
         if opt:
             self.token = rez['token']
             self.client.setup(cookies={'token': self.token}, timeout=30)
@@ -237,49 +217,49 @@ class RestClient(BaseClient):
     def get_ctn_list(self):
         """Returns all of phones, which associated with your account (login)"""
         url = self._get_link('/sso/subscribers', {'login': self.login})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_pp(self):
         """Returns price plan of the phone"""
         url = self._get_link('/info/pricePlan', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_status(self):
         """Returns status of the phone"""
         url = self._get_link('/info/status', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_available_services(self):
         """Returns available services for the phone"""
         url = self._get_link('/info/serviceAvailableList', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
 
     @decors.total_checker
     def get_sso(self):
         url = self._get_link('/sso/list', {'login': self.login})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_payments_history(self, bdt):
         """Returns payment history of phone from `bdt` for the phone"""
         url = self._get_link('/info/payments/history',
                             {'ctn': self.ctn, 'dateStart': datetime.now().isoformat() + '+0400'})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_blackList_numbers(self):
         """Returns phones which in black list"""
         url = self._get_link('/info/blackList/numbers', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_notifications(self):
         url = self._get_link('/setting/notifications', {})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def change_notifications(self, actiontype, email, clear=True):
@@ -292,13 +272,13 @@ class RestClient(BaseClient):
                                                              "enabled": "true"}],
                                             "actionNotifications": [{"actionType": actiontype,
                                                                      "enabled": "true"}]})
-            return self._get_rezults(url)
+            return self._get_results(url)
 
     @decors.total_checker
     def get_services_list(self):
         """Returns active services of the phone. Also, returns future-activate services"""
         url = self._get_link('/info/serviceList', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_request_status(self, requests=None):
@@ -315,9 +295,9 @@ class RestClient(BaseClient):
         else:
             In.append({'requestId': requests})
         url = self._get_link('/request/list', method_type="PUT", params={'requestList': In})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def create_detail_request(self, period):
         """Creates detail request. Returns requestId"""
         if not re.search(pattern=r'\d{4}-\d{2}-\d{2}', string=period):
@@ -328,13 +308,13 @@ class RestClient(BaseClient):
         else:
             billDate = datetime.strptime(period, "%Y-%m-%d").isoformat()
         url = self._get_link('/request/postpaidDetail', {'ctn': self.ctn, 'billDate': billDate})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_service_params(self, service):
         """Returns params of the `service`"""
         url = self._get_link('/info/serviceParams', {'serviceName': service})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def activate_service(self, service, effDate=None, expDate=None):
@@ -350,28 +330,28 @@ class RestClient(BaseClient):
         else:
             url = self._get_link('/request/serviceActivate', {'ctn': self.ctn, 'serviceName': service},
                                     method_type="PUT")
-        self._get_rezults(url)
+        self._get_results(url)
 
     @decors.total_checker
     def get_packs(self):
         """Returns current instanse of packs for the phone"""
         url = self._get_link('/info/rests', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def create_callForwardRequest(self):
         url = self._get_link('/request/callForward', {'ctn': self.ctn})
-        return self._get_rezults(url)['requestId']
+        return self._get_results(url)['requestId']
 
     @decors.total_checker
     def get_callForward(self, request):
         url = self._get_link('/info/callForward', {'requestId': request})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_subscriptions(self):
         url = self._get_link('/info/subscriptions', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def remove_subscribtion(self, sId=None, type=None):
@@ -381,38 +361,38 @@ class RestClient(BaseClient):
         if type:
             params['type'] = type
         url = self._get_link('/request/subscription/remove', params)
-        return self._get_rezults(url)
+        return self._get_results(url)
 
-    @decors.total_checker(1)
+    @decors.total_checker
     def get_balance(self):
         url = self._get_link('/info/prepaidBalance', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def get_available_pp(self):
         url = self._get_link('/info/pricePlanAvailableList', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
-    @decors.total_checker(1)
+    @decors.total_checker
     def get_packs_prepaid(self):
         url = self._get_link('/info/prepaidAddBalance', {'ctn': self.ctn})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def get_unbilled_balance(self, level='ctn'):
         if level == 'ctn':
             params = {'ctn': self.ctn}
         elif level == 'ban':
             params = {'ban': self.ban}
         url = self._get_link('/info/postpaidBalance', params)
-        return self._get_rezults(url)
+        return self._get_results(url)
 
     @decors.total_checker
     def changePricePlan(self, pp):
         url = self._get_link('/request/changePricePlan', {'ctn': self.ctn, 'pricePlan': pp})
-        return self._get_rezults(url)
+        return self._get_results(url)
 
-    @decors.total_checker(1)
+    @decors.total_checker
     def get_prepaid_detail(self, startDate, endDate):
         url = self._get_link('/request/prepaidDetail', {'ctn': self.ctn,
                                                            'startDate': startDate,
@@ -445,14 +425,14 @@ class SoapClient(BaseClient):
         params = {'token': self.token, 'ban': self.ban}
         if level == 'ctn':
             params['ctn'] = self.ctn
-        return self._get_rezults('getCTNInfoList', params)
+        return self._get_results('getCTNInfoList', params)
 
     @decors.total_checker
     def get_services_list(self, level='ctn'):
         params = {'token': self.token, 'ban': self.ban}
         if level == 'ctn':
             params['ctn'] = self.ctn
-        return self._get_rezults('getServicesList', params)
+        return self._get_results('getServicesList', params)
 
     @decors.total_checker
     def get_payments_list(self, bdate=None, edate=None, level='ctn'):
@@ -475,19 +455,19 @@ class SoapClient(BaseClient):
         'startDate': bdate,
         'endDate': edate
         }
-        return self._get_rezults('getPaymentList', params)
+        return self._get_results('getPaymentList', params)
 
     @decors.total_checker
     def replace_SIM(self, SIM):
         if not self.ctn:
             raise PARAM_ERROR('CTN обязателен')
         params = {'ctn': self.ctn, 'serialNumber': SIM}
-        return self._get_rezults('replaceSIM', params)
+        return self._get_results('replaceSIM', params)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def get_unbilled_calls(self):
         params = dict(token=self.token, ctn=self.ctn)
-        return self._get_rezults('getUnbilledCallsList', params)
+        return self._get_results('getUnbilledCallsList', params)
 
     @decors.total_checker
     def get_services_list_paged(self, page, level='ctn'):
@@ -495,41 +475,41 @@ class SoapClient(BaseClient):
                       page=page, ctnAmountPerPage=50)
         if level == 'ctn' and self.ctn:
             params['ctn'] = self.ctn
-        return self._get_rezults('getServicesListPaged', params)
+        return self._get_results('getServicesListPaged', params)
 
 
     @decors.total_checker
     def add_del_soc(self, soc, dir, act=None, deact=None):
         params = dict(token=self.token, ctn=self.ctn, soc=soc, inclusionType=dir, effDate=act, expDate=deact)
-        return self._get_rezults('addDelSOC', params)
+        return self._get_results('addDelSOC', params)
 
     @decors.total_checker
     def get_requests(self, req=None, page=1):
         if req:
             params = dict(token=self.token, requestId=str(req), login=self.login, page=page)
-            return self._get_rezults('getRequestList', params)
+            return self._get_results('getRequestList', params)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def get_current_detail(self):
         params = dict(token=self.token, ctn=self.ctn)
-        return self._get_rezults('getUnbilledCallsList', params)
+        return self._get_results('getUnbilledCallsList', params)
 
     @decors.total_checker
     def get_sim_list(self, level='ctn'):
         params = dict(token=self.token, ban=self.ban)
         if level == 'ctn' and self.ctn:
             params['ctn'] = self.ctn
-        return self._get_rezults('getSIMList', params)
+        return self._get_results('getSIMList', params)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def create_bill_detail(self, billDate):
-        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000')
-        return self._get_rezults('createBillChargesRequest', params)
+        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', ban=self.ban)
+        return self._get_results('createBillChargesRequest', params)
 
-    @decors.total_checker(0)
+    @decors.total_checker
     def get_bill_detail(self, requestId):
         params = dict(token=self.token, requestId=requestId)
-        return self._get_rezults('getBillCharges', params)
+        return self._get_results('getBillCharges', params)
 
 
 # для обработки нескольких номеров/банов
