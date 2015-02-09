@@ -74,7 +74,7 @@ class decors():
         return wrapper
 
     def unavailable(func):
-        raise INIT_ERROR('Method unavailable yet')
+        print('Method unavailable')
 
 
 class BaseClient():
@@ -249,11 +249,14 @@ class RestClient(BaseClient):
     def get_payments_history(self):
         """Returns payment history of phone from `bdt` for the phone"""
         url = self._get_link('/info/payments/history',
-                            {'ctn': self.ctn, 'dateStart': datetime.now().isoformat() + '+0400'})
+                             {
+                                 'ctn': self.ctn,
+                                 'dateStart': datetime.now().isoformat() + '+0400'
+                             })
         return self._get_results(url)
 
     @decors.total_checker
-    def get_blackList_numbers(self):
+    def get_blacklist_numbers(self):
         """Returns phones which in black list"""
         url = self._get_link('/info/blackList/numbers', {'ctn': self.ctn})
         return self._get_results(url)
@@ -270,11 +273,13 @@ class RestClient(BaseClient):
             pass
         else:
             url = self._get_link(method_name='/setting/notifications', method_type="PUT",
-                                    params={"notifPoints": [{"type": "EMAIL",
-                                                             "value": email,
-                                                             "enabled": "true"}],
-                                            "actionNotifications": [{"actionType": actiontype,
-                                                                     "enabled": "true"}]})
+                                 params={
+                                     "notifPoints": [{"type": "EMAIL",
+                                                      "value": email,
+                                                      "enabled": "true"}],
+                                     "actionNotifications": [{"actionType": actiontype,
+                                                              "enabled": "true"}]
+                                 })
             return self._get_results(url)
 
     @decors.total_checker
@@ -284,20 +289,15 @@ class RestClient(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    def get_request_status(self, requests=None):
+    def get_request_status(self, requests):
         """Checking status of requests"""
-        if not requests:
-            if not self.last_request:
-                raise PARAM_ERROR('Нужен номер запроса')
-            else:
-                requests = self.last_request
-        In = []
-        if type(requests) == type([]):
+        inner_requests = []
+        if isinstance(requests, []):
             for el in requests:
-                In.append({'requestId': el})
+                inner_requests.append({'requestId': el})
         else:
-            In.append({'requestId': requests})
-        url = self._get_link('/request/list', method_type="PUT", params={'requestList': In})
+            inner_requests.append({'requestId': requests})
+        url = self._get_link('/request/list', method_type="PUT", params={'requestList': inner_requests})
         return self._get_results(url)
 
     @decors.total_checker
@@ -307,10 +307,10 @@ class RestClient(BaseClient):
             if not re.search(pattern=r'\d{2}.\d{2}.\d{4}', string=period):
                 raise PARAM_ERROR('Неверный формат даты, нужен гггг-мм-дд или дд.мм.гггг')
             else:
-                billDate = datetime.strptime(period, "%d.%m.%Y").isoformat()
+                bill_date = datetime.strptime(period, "%d.%m.%Y").isoformat()
         else:
-            billDate = datetime.strptime(period, "%Y-%m-%d").isoformat()
-        url = self._get_link('/request/postpaidDetail', {'ctn': self.ctn, 'billDate': billDate})
+            bill_date = datetime.strptime(period, "%Y-%m-%d").isoformat()
+        url = self._get_link('/request/postpaidDetail', {'ctn': self.ctn, 'billDate': bill_date})
         return self._get_results(url)
 
     @decors.total_checker
@@ -320,19 +320,18 @@ class RestClient(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    def activate_service(self, service, effDate=None, expDate=None):
+    def activate_service(self, service):
         """Activating services. Can insert date of auto-off"""
         if service == "BL_CPA_22":
             url = self._get_link('/request/serviceActivate',
-                                    {'ctn': self.ctn, 'serviceName': service,
-                                     'featureParameters': [{
-                                                               'feature': "KKWQPS",
-                                                               'paramName': "WACLID",
-                                                               'paramValue': None}]},
-                                    method_type="PUT")
+                                 {'ctn': self.ctn, 'serviceName': service,
+                                  'featureParameters': [{'feature': "KKWQPS",
+                                                         'paramName': "WACLID",
+                                                         'paramValue': None}]},
+                                 method_type="PUT")
         else:
-            url = self._get_link('/request/serviceActivate', {'ctn': self.ctn, 'serviceName': service},
-                                    method_type="PUT")
+            url = self._get_link('/request/serviceActivate',
+                                 {'ctn': self.ctn, 'serviceName': service}, method_type="PUT")
         self._get_results(url)
 
     @decors.total_checker
