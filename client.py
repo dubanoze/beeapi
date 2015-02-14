@@ -63,6 +63,7 @@ class decors():
          Optionally required available pay_type of method"""
 
         def wrapper(self, *args, **kwargs):
+            #TODO: check payment type of agree for some methods
             #if self.pay_type != pay_type:
              #   raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))
             if not self.login or not self.password:
@@ -74,7 +75,9 @@ class decors():
         return wrapper
 
     def unavailable(func):
-        print('Method unavailable')
+        def wrapper(self):
+            raise ACCESS_ERROR('Method unavailable yet')
+        return wrapper
 
 
 class BaseClient():
@@ -147,12 +150,11 @@ class BaseClient():
         if self.api_type == "REST":
             self.client.go(url)
             return loads(self.client.response.body)
+
+        #TODO: dictionary for results of SOAP-requests
         elif self.api_type == "SOAP":
             rez = self.client.service.__getattr__(url)(**par)
-            if not isinstance(rez, int):
-                return [dict(el) for el in rez]
-            else:
-                return rez
+            return rez
 
     def get_account_info(self):
         """Returns login, password, ban, ban_id from BD for requested Client parameters"""
@@ -244,8 +246,8 @@ class RestClient(BaseClient):
         url = self._get_link('/sso/list', {'login': self.login})
         return self._get_results(url)
 
-    @decors.total_checker
     @decors.unavailable
+    @decors.total_checker
     def get_payments_history(self):
         """Returns payment history of phone from `bdt` for the phone"""
         url = self._get_link('/info/payments/history',
@@ -341,12 +343,12 @@ class RestClient(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    def create_callForwardRequest(self):
+    def create_call_forward_request(self):
         url = self._get_link('/request/callForward', {'ctn': self.ctn})
         return self._get_results(url)['requestId']
 
     @decors.total_checker
-    def get_callForward(self, request):
+    def get_call_forward(self, request):
         url = self._get_link('/info/callForward', {'requestId': request})
         return self._get_results(url)
 
@@ -390,7 +392,7 @@ class RestClient(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    def changePricePlan(self, pp):
+    def change_price_plan(self, pp):
         url = self._get_link('/request/changePricePlan', {'ctn': self.ctn, 'pricePlan': pp})
         return self._get_results(url)
 
@@ -488,7 +490,7 @@ class SoapClient(BaseClient):
     @decors.total_checker
     def get_requests(self, req=None, page=1):
         if req:
-            params = dict(token=self.token, requestId=str(req), login=self.login, page=page)
+            params = dict(token=self.token, requestId=str(req), login=self.login, page=page, hash=12321321321)
             return self._get_results('getRequestList', params)
 
     @decors.total_checker
@@ -516,6 +518,8 @@ class SoapClient(BaseClient):
 
 # для обработки нескольких номеров/банов
 class ClientStack(BaseClient):
+
+    @decors.unavailable
     def __init__(self, ctnlist=None, banlist=None, api_type=None):
         self.ctnlist = ctnlist
         self.banlist = banlist
