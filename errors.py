@@ -1,31 +1,27 @@
-# корневая ошибка
 class API_ERROR(Exception):
+    """base error"""
     pass
 
 
-#корневая ошибка авторизации
 class ACCESS_ERROR(API_ERROR):
+    """base access error"""
     pass
 
 
-#ошибка инициализации
 class INIT_ERROR(ACCESS_ERROR):
+    """initialize error"""
     pass
 
 
-#ошибка авторизации
 class AUTH_ERROR(ACCESS_ERROR):
+    """authorize error"""
     pass
 
 
-#ошибка неверно переданных/непереданных параметров
 class PARAM_ERROR(API_ERROR):
+    """not requered parameter"""
     pass
 
 
-#ошибка при обработке запроса
 class API_BASE_ERROR(API_ERROR):
-    def __init__(self, text=None, code=None, descr=None):
-        self.text = text
-        self.code = code
-        self.descr = descr
+    pass
