@@ -1,11 +1,12 @@
 from bill_classes import session, class_getter
 from client import RestClient, SoapClient
-from const import conn_eko as conn
+#from const import conn_eko as conn
 from xwritter import ex_write
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
 from mysql.connector.errors import InterfaceError
 from datetime import datetime
+import sqlite3
 
 ctn = class_getter().get('ctn')
 agree = class_getter().get('operator_agree')
@@ -13,8 +14,9 @@ accounts = class_getter().get('account_info')
 btp = class_getter().get('operator_tarif')
 services = class_getter().get('service_fx')
 
+
 rapi = RestClient()
-curs = conn.cursor()
+#curs = conn.cursor()
 
 
 def get_mass_serv():
@@ -42,7 +44,12 @@ def get_mass_serv():
 
     names = ['Номер', 'Тариф', 'Техкод услуги', 'Название услуги', 'АП услуги']
 
-    ex_write(names, result, path='C:/Users/админ/Desktop/services.xlsx')
+    try:
+        ex_write(names, result, path='C:/Users/ГостЪ/Desktop/services.xlsx')
+    except ValueError:
+        return result
+    else:
+        return
 
 
 def check_detail():
@@ -60,9 +67,9 @@ def check_detail():
         print('Get detail from API')
 
 
-    curs.execute('select phone from numbers where d_callcharge>3000 limit 2,20')
-    phones = curs.fetchall()
-    phones = [int(phone[0]) for phone in phones]
+  #  curs.execute('select phone from numbers where d_callcharge>3000 limit 2,20')
+   # phones = curs.fetchall()
+    phones = [int(phone[0]) for phone in [1]]
     for phone in phones:
         print('Check {}'.format(phone))
         get_det(phone)
@@ -118,3 +125,17 @@ def check_bills():
                                              ser.deactivated > datetime.now())).all()
         if len(hstr) != 0:
             print(el, ' не отклчена, должна быть отключена')
+
+def get_some_db():
+    agrees = session.query(agree.i_id, agree.oan, agree.name, agree.payment_type).filter(agree.region==1).all()
+    agrees_id = [el[0] for el in agrees]
+    ctns = session.query(ctn.i_id,ctn.msisdn,ctn.operator_agree).filter(ctn.operator_agree.in_(agrees_id)).all()
+    accs = session.query(accounts.i_id, accounts.login, accounts.password,accounts.operator_agree).\
+        filter(accounts.operator_agree.in_(agrees_id),accounts.access_type==1).group_by(accounts.operator_agree).all()
+
+    conn = sqlite3.connect('eko_mini.db')
+    curs = conn.cursor()
+
+    curs.execute('create table agrees (i_id integer primary key,'
+                 'oan integer, name text, payment_type integer)')
+    curs.execute('create table agrees ')
