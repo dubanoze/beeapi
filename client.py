@@ -1,15 +1,15 @@
 from grab import Grab
 from json import loads, dumps
 from datetime import datetime
-from bill_classes import session, class_getter
+from bill_classes import session, ClassGetter
 from sqlalchemy.orm.exc import MultipleResultsFound
 from suds.client import Client
 import re
 from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
-_ctn = class_getter().get('ctn')
-_agree = class_getter().get('operator_agree')
-_account = class_getter().get('account_info')
+_ctn = ClassGetter().get('ctn')
+_agree = ClassGetter().get('operator_agree')
+_account = ClassGetter().get('account_info')
 
 
 def _get_data(num=None, login=None,
@@ -143,13 +143,17 @@ class BaseClient():
         elif self.api_type == "SOAP":
             raise ACCESS_ERROR
 
-    def _get_results(self, url, par=None):
+    def _get_results(self, url, par=None,timeout=30):
         """Returns results of requested method.
         'par' using by SOAP Client"""
 
         if self.api_type == "REST":
+            self.client.setup(timeout=timeout)
             self.client.go(url)
-            return loads(self.client.response.body)
+            try:
+                return loads(self.client.response.body)
+            except TypeError:
+                return loads(self.client.response.body.decode())
 
         #TODO: dictionary for results of SOAP-requests
         elif self.api_type == "SOAP":
@@ -203,7 +207,7 @@ class RestClient(BaseClient):
                  token=None, pay_type=None):
         super().__init__(ctn=ctn, ban=ban, ban_id=ban_id, pay_type=pay_type,
                          login=login, password=password, token=token,
-                         api_type='REST', client=Grab(),
+                         api_type='REST', client=Grab(timeout=60),
                          base_url='https://my.beeline.ru/api/1.0')
 
     @decors.account_cheker
@@ -213,7 +217,7 @@ class RestClient(BaseClient):
         rez = self._get_results(url)
         if opt:
             self.token = rez['token']
-            self.client.setup(cookies={'token': self.token}, timeout=30)
+            self.client.setup(cookies={'token': self.token})
         else:
             return rez
 
@@ -488,10 +492,17 @@ class SoapClient(BaseClient):
         return self._get_results('addDelSOC', params)
 
     @decors.total_checker
-    def get_requests(self, req=None, page=1):
+    def get_requests(self, req=None, bdt=None, edt=None, page=1, rec=50):
+        params = dict(token=self.token, requestId=str(req), login=self.login, page=page, hash=12321321321, recordsPerPage=rec)
         if req:
-            params = dict(token=self.token, requestId=str(req), login=self.login, page=page, hash=12321321321)
-            return self._get_results('getRequestList', params)
+            params['requestId']=str(req)
+        elif bdt and edt:
+            params['startDate'] = bdt
+            params['endDate'] = edt
+        elif bdt:
+            params['startDate'] = bdt
+            params['endDate'] = datetime.now().isoformat()
+        return self._get_results('getRequestList', params)
 
     @decors.total_checker
     def get_current_detail(self):
@@ -555,5 +566,3 @@ class ClientStack(BaseClient):
                         _in(self.ctn, self.ban_id, self.ban,
                             self.login, self.password, self.sorted_list.index(el))
                         break
-
-

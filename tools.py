@@ -1,18 +1,18 @@
-from bill_classes import session, class_getter
+from reportlab.lib.validators import isInstanceOf
+from bill_classes import session, ClassGetter
 from client import RestClient, SoapClient
-#from const import conn_eko as conn
 from xwritter import ex_write
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
-from mysql.connector.errors import InterfaceError
 from datetime import datetime
 import sqlite3
+import warnings
 
-ctn = class_getter().get('ctn')
-agree = class_getter().get('operator_agree')
-accounts = class_getter().get('account_info')
-btp = class_getter().get('operator_tarif')
-services = class_getter().get('service_fx')
+
+
+
+
+
 
 
 rapi = RestClient()
@@ -20,6 +20,10 @@ rapi = RestClient()
 
 
 def get_mass_serv():
+    services = ClassGetter.get('service_fx')
+    agree = ClassGetter.get('operator_agree')
+    ctn = ClassGetter.get('ctn')
+    btp = ClassGetter.get('operator_tarif')
     banlist = session.query(agree.i_id).filter(agree.moboperator == 1, agree.payment_type == 0,
                                                agree.discontinued == 0).all()
     banlist = [el[0] for el in banlist]
@@ -83,8 +87,8 @@ def check_detail():
 
 def check_bills():
     '''проверка наличия услуг в биллинге'''
-    ser = class_getter().get('hstr_service_fx')
-    service_fx = class_getter().get('service_fx')
+    ser = ClassGetter.get('hstr_service_fx')
+    service_fx = ClassGetter.get('service_fx')
 
     file = open('C:/Users/админ/Desktop/1.txt').readlines()
     rez_f = []
@@ -127,6 +131,10 @@ def check_bills():
             print(el, ' не отклчена, должна быть отключена')
 
 def get_some_db():
+    agree = ClassGetter.get('operator_agree')
+    ctn = ClassGetter.get('ctn')
+    accounts = ClassGetter.get('account_info')
+
     agrees = session.query(agree.i_id, agree.oan, agree.name, agree.payment_type).filter(agree.region==1).all()
     agrees_id = [el[0] for el in agrees]
     ctns = session.query(ctn.i_id,ctn.msisdn,ctn.operator_agree).filter(ctn.operator_agree.in_(agrees_id)).all()
@@ -139,3 +147,101 @@ def get_some_db():
     curs.execute('create table agrees (i_id integer primary key,'
                  'oan integer, name text, payment_type integer)')
     curs.execute('create table agrees ')
+
+def get_off_services():
+    services = ClassGetter.get('service_fx')
+    hstr_services = ClassGetter.get('hstr_service_fx')
+    rezult = []
+    sers = session.query(hstr_services.object_id, hstr_services.service_id).\
+		filter(or_(hstr_services.deactivated==None,
+				   hstr_services.deactivated>datetime.now())).\
+		group_by(hstr_services.service_id).all()
+    print('Getted services list')
+
+    for rec in sers:
+        rapi = RestClient(ctn=int(rec[0]))
+        ser_name = session.query(services.bee_sync).filter(services.i_id==int(rec[1]),services).one()[0]
+        api_sers = rapi.get_services_list()['services']
+        for ser in api_sers:
+            if ser['name']==ser_name:
+                rezult.append([ser_name,ser['removeInd']])
+        if rezult[-1][0]!=ser_name:
+            warnings.warn('Kosyak, phone={}, service={}'.format(rapi.ctn,ser_name))
+        print('Made {} of {}'.format(sers.index(rec)+1,len(sers)))
+    try:
+        ex_write(['code','y/n'],rezult,"C:/Users/админ/Desktop/remove_services.xlsx")
+    except Exception:
+        return rezult
+
+def check_subscription(nums):
+    rez = []
+    for phone in nums:
+        try:
+            rapi.change_owner(ctn=str(phone).strip())
+        except NoResultFound:
+            continue
+        if len(rapi.get_subscriptions()['subscriptions'])>0:
+            rez.append(rapi.ctn)
+        print('Ready {} of {}'.format(nums.index(phone)+1,len(nums)))
+    print(rez)
+
+def remove_subscription(nums = None):
+    if not isinstance(nums, list):
+        nums = open(nums).readlines()
+    for phone in nums:
+            rapi.change_owner(ctn=str(phone).strip())
+            subscrs = rapi.get_subscriptions()['subscriptions']
+            for el in subscrs:
+                rapi.remove_subscribtion(sId=el['id'],type=el['type'])
+            if len(subscrs)>0:
+                print('Made request(-s) for {}th of {} numbers'.format(
+                    nums.index(phone)+1,
+                    len(nums)
+                ))
+            else:
+                print('Didn\'t found subscriptions on {}.\n{}th of {} numbers'.format(
+                    phone,
+                    nums.index(phone)+1,
+                    len(nums)
+                ))
+
+    check_subscription(nums)
+
+def check_sim():
+    sapi = SoapClient()
+    nums = [[	9653471202	,	897019914051244936	,	9052555979	,	897019912102959356	],
+[	9672092303	,	897019914051244868	,	9052366533	,	897019912031511672	],
+[	9653508738	,	897019914072751440	,	9602543269	,	897019914024242348	],
+[	9653508915	,	897019914072751439	,	9602543267	,	897019914024242341	],
+[	9672095910	,	897019914044848304	,	9602348121	,	897019914101216731	],
+[	9653578212	,	897019914072751372	,	9602542729	,	897019914082848694	]]
+
+    for row in nums:
+        sapi.change_owner(ctn=row[0])
+        v_sim = sapi.get_sim_list()[0]['serialNumber']
+        sapi.change_owner(row[2])
+        r_sim = sapi.get_sim_list()[0]['serialNumber']
+        print('Old: {}\nNew:\nvirt:{}\nreal:{}'.format(row,v_sim,r_sim))
+
+def update_objects(classname):
+    c_class = ClassGetter.get(classname)
+    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y",""]:
+        return
+    with open('C:/Users/админ/Desktop/1.txt') as file:
+        names = file.readline().split('\t')
+        names = [el.strip() for el in names]
+        values = file.readlines()[1:]
+        for val in values:
+            val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')] #is it possible - making digits, else stripping
+            items = dict(zip(names,val_u))
+            serv = session.query(c_class).filter(c_class.i_id==items['i_id']).one()
+            for key in items:
+                if items[key]!="": #if value not nullable...
+                    setattr(serv,key,items[key])
+            print('Ready {} of {}'.format(values.index(val)+1,len(values)))
+        session.commit()
+        print('That\'s all')
+
+
+
+

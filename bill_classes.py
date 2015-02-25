@@ -9,8 +9,8 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 
 
 engine = create_engine('mysql+mysqlconnector://'
-                       'login:password'
-                       '@host:3306/db')
+                       'a.spicin:7JQMMADmz2t3hdSF'
+                       '@192.168.5.77:3306/ekomobile')
 Base = declarative_base()
 
 
@@ -71,9 +71,9 @@ class Properties(Base):
 class ClassGetter():
 
     @staticmethod
-    def get(self, classname=None, class_id=None, attrib_id=None):
+    def get(classname=None, class_id=None, attrib_id=None):
         def get_link_attrib(object_id, prop_id):
-            rez = ClassGetter().get(class_id=object_id)
+            rez = ClassGetter.get(class_id=object_id)
 
             # получаем аттрибуты класса
 
@@ -87,6 +87,7 @@ class ClassGetter():
             'raw': VARCHAR
             }
             out_attrib = Column(attrib.name, types[attrib.data_type])
+            out_attrib.label(attrib.name+'_')
             if attrib.required:
                 out_attrib.nullable = False
             else:
@@ -98,6 +99,7 @@ class ClassGetter():
         if classname:  #searching by class name
             try:
                 result = session.query(Object).filter(Object.name == classname).one()
+
             except MultipleResultsFound:
                 print('Objects with class name="{}" > 1'.format(classname))
                 return
