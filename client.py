@@ -7,9 +7,9 @@ from suds.client import Client
 import re
 from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
-_ctn = ClassGetter().get('ctn')
-_agree = ClassGetter().get('operator_agree')
-_account = ClassGetter().get('account_info')
+_ctn = ClassGetter.get('ctn')
+_agree = ClassGetter.get('operator_agree')
+_account = ClassGetter.get('account_info')
 
 
 def _get_data(num=None, login=None,
