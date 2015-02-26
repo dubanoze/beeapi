@@ -1,6 +1,5 @@
-from reportlab.lib.validators import isInstanceOf
 from bill_classes import session, ClassGetter
-from client import RestClient, SoapClient
+from client import Rest, Soap
 from xwritter import ex_write
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
@@ -15,11 +14,9 @@ import warnings
 
 
 
-rapi = RestClient()
-#curs = conn.cursor()
-
-
 def get_mass_serv():
+
+    rapi = Rest()
     services = ClassGetter.get('service_fx')
     agree = ClassGetter.get('operator_agree')
     ctn = ClassGetter.get('ctn')
@@ -57,8 +54,9 @@ def get_mass_serv():
 
 
 def check_detail():
+
     """проверка деталки"""
-    sapi = SoapClient()
+    sapi = Soap()
 
     def get_det(num):
         sapi.change_owner(num)
@@ -146,9 +144,10 @@ def get_some_db():
 
     curs.execute('create table agrees (i_id integer primary key,'
                  'oan integer, name text, payment_type integer)')
-    curs.execute('create table agrees ')
+    #curs.execute('create table agrees ')
 
 def get_off_services():
+
     services = ClassGetter.get('service_fx')
     hstr_services = ClassGetter.get('hstr_service_fx')
     rezult = []
@@ -159,7 +158,9 @@ def get_off_services():
     print('Getted services list')
 
     for rec in sers:
-        rapi = RestClient(ctn=int(rec[0]))
+
+
+        rapi = Rest(ctn=int(rec[0]))
         ser_name = session.query(services.bee_sync).filter(services.i_id==int(rec[1]),services).one()[0]
         api_sers = rapi.get_services_list()['services']
         for ser in api_sers:
@@ -174,6 +175,8 @@ def get_off_services():
         return rezult
 
 def check_subscription(nums):
+    rapi = Rest()
+
     rez = []
     for phone in nums:
         try:
@@ -185,7 +188,9 @@ def check_subscription(nums):
         print('Ready {} of {}'.format(nums.index(phone)+1,len(nums)))
     print(rez)
 
-def remove_subscription(nums = None):
+def remove_subscription(nums='C:/Users/админ/Desktop/1.txt'):
+    rapi = Rest()
+
     if not isinstance(nums, list):
         nums = open(nums).readlines()
     for phone in nums:
@@ -194,7 +199,8 @@ def remove_subscription(nums = None):
             for el in subscrs:
                 rapi.remove_subscribtion(sId=el['id'],type=el['type'])
             if len(subscrs)>0:
-                print('Made request(-s) for {}th of {} numbers'.format(
+                print('Made {} request(-s) for {}th of {} numbers'.format(
+                    len(subscrs),
                     nums.index(phone)+1,
                     len(nums)
                 ))
@@ -208,13 +214,14 @@ def remove_subscription(nums = None):
     check_subscription(nums)
 
 def check_sim():
-    sapi = SoapClient()
+
+    sapi = Soap()
     nums = [[	9653471202	,	897019914051244936	,	9052555979	,	897019912102959356	],
-[	9672092303	,	897019914051244868	,	9052366533	,	897019912031511672	],
-[	9653508738	,	897019914072751440	,	9602543269	,	897019914024242348	],
-[	9653508915	,	897019914072751439	,	9602543267	,	897019914024242341	],
-[	9672095910	,	897019914044848304	,	9602348121	,	897019914101216731	],
-[	9653578212	,	897019914072751372	,	9602542729	,	897019914082848694	]]
+            [9672092303	,	897019914051244868	,	9052366533	,	897019912031511672	],
+            [	9653508738	,	897019914072751440	,	9602543269	,	897019914024242348	],
+            [	9653508915	,	897019914072751439	,	9602543267	,	897019914024242341	],
+            [	9672095910	,	897019914044848304	,	9602348121	,	897019914101216731	],
+            [	9653578212	,	897019914072751372	,	9602542729	,	897019914082848694	]]
 
     for row in nums:
         sapi.change_owner(ctn=row[0])
@@ -223,25 +230,29 @@ def check_sim():
         r_sim = sapi.get_sim_list()[0]['serialNumber']
         print('Old: {}\nNew:\nvirt:{}\nreal:{}'.format(row,v_sim,r_sim))
 
-def update_objects(classname):
+def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt'):
+    """required classname and key"""
+
     c_class = ClassGetter.get(classname)
     if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y",""]:
         return
-    with open('C:/Users/админ/Desktop/1.txt') as file:
+    with open(path) as file:
         names = file.readline().split('\t')
         names = [el.strip() for el in names]
         values = file.readlines()[1:]
         for val in values:
-            val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')] #is it possible - making digits, else stripping
+            #if it possible - making digits, else stripping
+            val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')]
             items = dict(zip(names,val_u))
-            serv = session.query(c_class).filter(c_class.i_id==items['i_id']).one()
+            serv = session.query(c_class).filter(getattr(c_class,key) == items[key]).one()
+
             for key in items:
-                if items[key]!="": #if value not nullable...
+                #if value not null...
+                if items[key] != "":
                     setattr(serv,key,items[key])
             print('Ready {} of {}'.format(values.index(val)+1,len(values)))
+
         session.commit()
         print('That\'s all')
-
-
 
 

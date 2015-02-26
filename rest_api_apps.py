@@ -1,6 +1,6 @@
 import os, time
 
-from client import RestClient
+from client import Rest
 from soap_api import bee_api as SoapApi
 from xwritter import ex_write
 from bill_classes import class_getter, session
@@ -21,7 +21,7 @@ def available_one(num):
     n = session.query(ctn.operator_agree).filter(ctn.msisdn == num).one()
     log, passw = session.query(acc.login, acc.password).filter(acc.operator_agree == n.operator_agree).filter(
         acc.access_type == 1).one()
-    ap = RestClient(ctn=num, login=log, password=passw)
+    ap = Rest(ctn=num, login=log, password=passw)
     ap.get_available_services('save')
     print('done')
 
@@ -64,11 +64,11 @@ def available_all():
         if l_a:
             for acc_a in l_a:
                 log, passw = acc_a
-                ap = RestClient(ctn=el.msisdn, login=log, password=passw)
+                ap = Rest(ctn=el.msisdn, login=log, password=passw)
                 ap.get_token()
                 break
         else:
-            ap = RestClient(ctn=el.msisdn, login=log, password=passw)
+            ap = Rest(ctn=el.msisdn, login=log, password=passw)
         ap.get_available_services('save')
         print('Сделали {} из {}, номер {}'.format(ctn_list.index(el), len(ctn_list), el.msisdn))
     print('done')
@@ -89,7 +89,7 @@ def availables():
         query = session.query(acc.login, acc.password).filter(acc.operator_agree == ctn_n.operator_agree).filter(
             acc.access_type == 1)
         log, passw = query.one()
-        RApi = RestClient(ctn=ctn_n.msisdn, login=log, password=passw)
+        RApi = Rest(ctn=ctn_n.msisdn, login=log, password=passw)
         RApi.get_token()
         SApi = SoapApi()
         SApi.ctn = number
@@ -138,7 +138,7 @@ def get_tarifs():
             continue
         for access in rez_acc:
             log, passw = access
-            api = RestClient(ctn=phone[0], login=log, password=passw)
+            api = Rest(ctn=phone[0], login=log, password=passw)
 
             try:
                 api.get_token()

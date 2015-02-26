@@ -10,7 +10,7 @@ import shutil
 from grab.error import GrabTimeoutError
 
 from soap_api import bee_api
-from client import RestClient
+from client import Rest
 from errors import PARAM_ERROR, API_BASE_ERROR
 
 
@@ -24,7 +24,7 @@ class BAN():
 # услуги списка номеров
 def serv(ctn_list):
     for ctn in ctn_list:
-        api = RestClient(ctn=ctn)
+        api = Rest(ctn=ctn)
         api.get_token()
         serv = api.get_servicers_list()['services']
         print('ctn == ' + str(api.ctn) + "\nServices count == " + str(len(serv)))
@@ -445,7 +445,7 @@ def mass_remove_subscriptions(*args):
     file = open(args[0][0]).readlines()
     rezults = []
     for el in file:
-        api = RestClient(ctn=el.rstrip())
+        api = Rest(ctn=el.rstrip())
         try:
             api.get_token()
         except GrabTimeoutError:
@@ -484,7 +484,7 @@ def mass_remove_subscriptions(*args):
         print(api.get_request_status(rezults[0][1]))
     else:
         for rez in rezults:
-            api = RestClient(ctn=rez[0])
+            api = Rest(ctn=rez[0])
             try:
                 api.get_token()
             except GrabTimeoutError:
@@ -525,7 +525,7 @@ def checkPP():
     ctns = [el[0] for el in ctns]
     rezult = []
     for phone in ctns:
-        api = RestClient(ctn=phone)
+        api = Rest(ctn=phone)
         try:
             api.get_account_info()
             api.get_token()

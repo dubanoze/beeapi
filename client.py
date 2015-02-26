@@ -1,11 +1,19 @@
 from grab import Grab
 from json import loads, dumps
 from datetime import datetime
-from bill_classes import session, ClassGetter
 from sqlalchemy.orm.exc import MultipleResultsFound
 from suds.client import Client
 import re
-from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
+
+try:
+    from bill_classes import session, ClassGetter
+except ImportError:
+    from .bill_classes import session, ClassGetter
+
+try:
+    from .errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
+except ImportError:
+    from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
 _ctn = ClassGetter.get('ctn')
 _agree = ClassGetter.get('operator_agree')
@@ -199,7 +207,7 @@ class BaseClient():
             return datetime.strptime(dt, "%Y-%m-%d").isoformat()
 
 
-class RestClient(BaseClient):
+class Rest(BaseClient):
     """Class initialize client for REST API"""
 
     def __init__(self, ctn=None, ban=None, ban_id=None,
@@ -408,7 +416,7 @@ class RestClient(BaseClient):
                                                            'reportType': 'xls'})
 
 
-class SoapClient(BaseClient):
+class Soap(BaseClient):
     def __init__(self, ctn=None, ban=None, ban_id=None,
                  login=None, password=None,
                  token=None, pay_type=None):
