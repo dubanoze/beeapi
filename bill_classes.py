@@ -3,14 +3,14 @@ from sqlalchemy import create_engine, Column, ForeignKey
 from sqlalchemy.dialects.mysql import MEDIUMINT, DECIMAL, INTEGER, VARCHAR, DATETIME, TINYINT, ENUM, LONGTEXT
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.orm import relationship, backref
-
+from const import eko_access
 from sqlalchemy.orm.exc import MultipleResultsFound
 
 
 
 engine = create_engine('mysql+mysqlconnector://'
-                       'a.spicin:7JQMMADmz2t3hdSF'
-                       '@192.168.5.77:3306/ekomobile')
+                       '{user}:{password}'
+                       '@{host}:{port}/{database}'.format(**eko_access))
 Base = declarative_base()
 
 
