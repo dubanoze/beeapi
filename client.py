@@ -11,9 +11,9 @@ except ImportError:
     from .bill_classes import session, ClassGetter
 
 try:
-    from .errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
-except ImportError:
     from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
+except ImportError:
+    from .errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
 _ctn = ClassGetter.get('ctn')
 _agree = ClassGetter.get('operator_agree')
@@ -93,7 +93,7 @@ class BaseClient():
     def __init__(self, ctn=None, ban=None, ban_id=None,
                  login=None, password=None, pay_type=None,
                  token=None, api_type=None,
-                 base_url=None, client=None):
+                 base_url=None, client=None, api_instance=None):
         self.ctn = ctn
         self.ban = ban
         self.login = login
@@ -109,6 +109,8 @@ class BaseClient():
             1: "prepaid",
             None: "global"
         }
+        if api_instance:
+            self.exchange_attrs(api_instance)
 
     def __repr__(self):
         ret = '<{}>,'.format(self.__class__.__name__)
@@ -211,12 +213,13 @@ class Rest(BaseClient):
     """Class initialize client for REST API"""
 
     def __init__(self, ctn=None, ban=None, ban_id=None,
-                 login=None, password=None,
-                 token=None, pay_type=None):
+                 login=None, password=None, token=None,
+                 pay_type=None, api_instance=None):
         super().__init__(ctn=ctn, ban=ban, ban_id=ban_id, pay_type=pay_type,
                          login=login, password=password, token=token,
                          api_type='REST', client=Grab(timeout=60),
-                         base_url='https://my.beeline.ru/api/1.0')
+                         base_url='https://my.beeline.ru/api/1.0',
+                         api_instance=api_instance)
 
     @decors.account_cheker
     def get_token(self, opt=1):
@@ -418,12 +421,12 @@ class Rest(BaseClient):
 
 class Soap(BaseClient):
     def __init__(self, ctn=None, ban=None, ban_id=None,
-                 login=None, password=None,
-                 token=None, pay_type=None):
+                 login=None, password=None, token=None,
+                 pay_type=None, api_instance=None):
         super().__init__(
             ctn=ctn, ban=ban, ban_id=ban_id, login=login, password=password, token=token, pay_type=pay_type,
-            api_type='SOAP', base_url='https://my.beeline.ru/api/SubscriberService?WSDL', client=Client
-        )
+            api_type='SOAP', base_url='https://my.beeline.ru/api/SubscriberService?WSDL', client=Client,
+            api_instance=api_instance)
         try:
             self.client = self.client(self.base_url, timeout=600)
         except Exception:
