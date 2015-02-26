@@ -111,6 +111,7 @@ class ClassGetter():
         for attrib in result.properties_t:
             attributes[attrib.name] = _getattr(attrib)
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
+        attributes['__table_args__' ] = {'extend_existing': True}
 
         return type(result.name, (Base,), attributes)  #returns new class with Propeties of Object instance
 
