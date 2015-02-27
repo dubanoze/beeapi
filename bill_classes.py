@@ -10,9 +10,8 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 
 engine = create_engine('mysql+mysqlconnector://'
                        '{user}:{password}'
-                       '@{host}:{port}/{database}'.format(**eko_access))
+                       '@{host}:{port}/ekomobile'.format(**eko_access))
 Base = declarative_base()
-
 
 
 class Object(Base):
