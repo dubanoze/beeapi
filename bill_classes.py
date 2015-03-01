@@ -10,7 +10,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 
 engine = create_engine('mysql+mysqlconnector://'
                        '{user}:{password}'
-                       '@{host}:{port}/{database}'.format(**eko_access))
+                       '@{host}:{port}/ekomobile'.format(**eko_access))
 Base = declarative_base()
 
 
@@ -93,6 +93,8 @@ class ClassGetter():
             else:
                 out_attrib.nullable = True
             if attrib.ref_object:
+                '''ref = ClassGetter.get(class_id=attrib.ref_object)
+                session.query(getattr(ref, attrib.ref_object_level)).filter()'''
                 pass
             return out_attrib
 
