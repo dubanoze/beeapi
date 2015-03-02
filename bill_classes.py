@@ -92,6 +92,8 @@ class ClassGetter():
             else:
                 out_attrib.nullable = True
             if attrib.ref_object:
+                '''ref = ClassGetter.get(class_id=attrib.ref_object)
+                session.query(getattr(ref, attrib.ref_object_level)).filter()'''
                 pass
             return out_attrib
 

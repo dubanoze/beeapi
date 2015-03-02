@@ -15,6 +15,7 @@ try:
 except ImportError:
     from .errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
+from suds import WebFault
 _ctn = ClassGetter.get('ctn')
 _agree = ClassGetter.get('operator_agree')
 _account = ClassGetter.get('account_info')
@@ -477,11 +478,31 @@ class Soap(BaseClient):
         return self._get_results('getPaymentList', params)
 
     @decors.total_checker
-    def replace_SIM(self, SIM):
+    def replace_sim(self, sim):
         if not self.ctn:
             raise PARAM_ERROR('CTN обязателен')
-        params = {'ctn': self.ctn, 'serialNumber': SIM}
+        params = {'ctn': self.ctn, 'serialNumber': sim}
         return self._get_results('replaceSIM', params)
+
+    @staticmethod
+    def get_requests_st(request, phone):
+        api = Soap(ctn=phone)
+        api.get_account_info()
+        api.get_token()
+        return api.get_requests(request)[0]
+
+    @staticmethod
+    def replace_sim_st(phone, sim):
+        api = Soap(ctn = phone)
+        api.get_account_info()
+        api.get_token()
+        print(api.token)
+        result = {'result': None, 'error': None}
+        try:
+            result['result'] = api.replace_sim(sim)
+        except WebFault as e:
+            result['error'] = e.fault
+        return result
 
     @decors.total_checker
     def get_unbilled_calls(self):
