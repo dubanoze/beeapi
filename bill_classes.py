@@ -6,10 +6,10 @@ from sqlalchemy.orm import relationship, backref
 from const import eko_access
 from sqlalchemy.orm.exc import MultipleResultsFound
 
-
-engine = create_engine('mysql+pymysql://'
+DB_DRIVER = 'pymysql'
+engine = create_engine('mysql+{DB_DRIVER}://'
                        '{user}:{passwd}'
-                       '@{host}:{port}/ekomobile'.format(**eko_access))
+                       '@{host}:{port}/ekomobile'.format(DB_DRIVER, **eko_access))
 Base = declarative_base()
 
 
@@ -17,14 +17,14 @@ class Object(Base):
     """Describe table with objects (other tables)"""
     __tablename__ = 'a_objects'
     object_id = Column(INTEGER(unsigned=True), primary_key=True, nullable=False)
-    name = Column(VARCHAR(length=50), nullable=False, unique=True)  # системное имя класса
-    ru_name = Column(VARCHAR(length=50), nullable=False)  # человеческое название класса
+    name = Column(VARCHAR(length=50), nullable=False, unique=True)  # system class name
+    ru_name = Column(VARCHAR(length=50), nullable=False)  # human class name
     description = Column(VARCHAR(length=250))
-    table = Column(VARCHAR(length=50))  # таблица, в которой хранятся экземпляры класса
-    id_field = Column(VARCHAR(length=50))  # название поля-идентификатора
+    table = Column(VARCHAR(length=50))  # table name of class instances
+    id_field = Column(VARCHAR(length=50))  # name of class's id field
 
     properties_t = relationship('Properties', backref='a_properties',
-                                primaryjoin="Object.object_id==Properties.object_id")
+                                primaryjoin="Object.object_id==Properties.object_id") #related properties
 
 
 class Properties(Base):
