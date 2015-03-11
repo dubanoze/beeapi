@@ -7,9 +7,8 @@ from const import eko_access
 from sqlalchemy.orm.exc import MultipleResultsFound
 
 
-
-engine = create_engine('mysql+mysqlconnector://'
-                       '{user}:{password}'
+engine = create_engine('mysql+pymysql://'
+                       '{user}:{passwd}'
                        '@{host}:{port}/ekomobile'.format(**eko_access))
 Base = declarative_base()
 
@@ -70,7 +69,7 @@ class Properties(Base):
 class ClassGetter():
 
     @staticmethod
-    def get(classname=None, class_id=None, attrib_id=None):
+    def get(classname=None, class_id=None, attrib_id=None, ref=False):
         def get_link_attrib(object_id, prop_id):
             rez = ClassGetter.get(class_id=object_id)
 
@@ -94,6 +93,9 @@ class ClassGetter():
             if attrib.ref_object:
                 '''ref = ClassGetter.get(class_id=attrib.ref_object)
                 session.query(getattr(ref, attrib.ref_object_level)).filter()'''
+                pass
+            #TODO: make returning linked object
+            if ref:
                 pass
             return out_attrib
 
