@@ -4,15 +4,7 @@ from xwritter import ex_write
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
 from datetime import datetime
-import sqlite3
 import warnings
-
-
-
-
-
-
-
 
 def get_mass_serv():
 
@@ -53,38 +45,8 @@ def get_mass_serv():
         return
 
 
-def check_detail():
-
-    """проверка деталки"""
-    sapi = Soap()
-
-    def get_det(num):
-        sapi.change_owner(num)
-        rez = sapi.get_current_detail()
-        names = [el for el in rez[0]]
-        detal = []
-        for rec in rez:
-            detal.append([rec[key] for key in rec])
-        ex_write(names, detal, 'C:/Users/админ/Desktop/деталка/{}_API.xlsx'.format(num))
-        print('Get detail from API')
-
-
-  #  curs.execute('select phone from numbers where d_callcharge>3000 limit 2,20')
-   # phones = curs.fetchall()
-    phones = [int(phone[0]) for phone in [1]]
-    for phone in phones:
-        print('Check {}'.format(phone))
-        get_det(phone)
-        print('{} of {}'.format(
-            phones.index(phone) + 1,
-            len(phones)
-        ))
-        if input('Next? y/n ') == 'n':
-            break
-
-
 def check_bills():
-    '''проверка наличия услуг в биллинге'''
+    """проверка наличия услуг в биллинге"""
     ser = ClassGetter.get('hstr_service_fx')
     service_fx = ClassGetter.get('service_fx')
 
@@ -108,7 +70,7 @@ def check_bills():
         hstr = session.query(ser).filter(ser.object_id == phone.rstrip(),
                                          ser.service_id == sid,
                                          ser.activated < datetime.now(),
-                                         or_(ser.deactivated == None,
+                                         or_(not ser.deactivated,
                                              ser.deactivated > datetime.now())).all()
         if len(hstr) == 0:
             print(el, ' не подключена, должна быть подключена')
@@ -123,56 +85,40 @@ def check_bills():
         hstr = session.query(ser).filter(ser.object_id == phone.rstrip(),
                                          ser.service_id == sid,
                                          ser.deactivated < datetime.now(),
-                                         or_(ser.deactivated == None,
+                                         or_(not ser.deactivated,
                                              ser.deactivated > datetime.now())).all()
         if len(hstr) != 0:
             print(el, ' не отклчена, должна быть отключена')
 
-def get_some_db():
-    agree = ClassGetter.get('operator_agree')
-    ctn = ClassGetter.get('ctn')
-    accounts = ClassGetter.get('account_info')
-
-    agrees = session.query(agree.i_id, agree.oan, agree.name, agree.payment_type).filter(agree.region==1).all()
-    agrees_id = [el[0] for el in agrees]
-    ctns = session.query(ctn.i_id,ctn.msisdn,ctn.operator_agree).filter(ctn.operator_agree.in_(agrees_id)).all()
-    accs = session.query(accounts.i_id, accounts.login, accounts.password,accounts.operator_agree).\
-        filter(accounts.operator_agree.in_(agrees_id),accounts.access_type==1).group_by(accounts.operator_agree).all()
-
-    conn = sqlite3.connect('eko_mini.db')
-    curs = conn.cursor()
-
-    curs.execute('create table agrees (i_id integer primary key,'
-                 'oan integer, name text, payment_type integer)')
-    #curs.execute('create table agrees ')
 
 def get_off_services():
 
     services = ClassGetter.get('service_fx')
     hstr_services = ClassGetter.get('hstr_service_fx')
-    rezult = []
+    result = []
     sers = session.query(hstr_services.object_id, hstr_services.service_id).\
-		filter(or_(hstr_services.deactivated==None,
-				   hstr_services.deactivated>datetime.now())).\
-		group_by(hstr_services.service_id).all()
-    print('Getted services list')
+        filter(or_(not hstr_services.deactivated,
+                   hstr_services.deactivated > datetime.now())).\
+        group_by(hstr_services.service_id).all()
+    print('Get services list')
 
     for rec in sers:
 
 
         rapi = Rest(ctn=int(rec[0]))
-        ser_name = session.query(services.bee_sync).filter(services.i_id==int(rec[1]),services).one()[0]
+        ser_name = session.query(services.bee_sync).filter(services.i_id == int(rec[1]), services).one()[0]
         api_sers = rapi.get_services_list()['services']
         for ser in api_sers:
-            if ser['name']==ser_name:
-                rezult.append([ser_name,ser['removeInd']])
-        if rezult[-1][0]!=ser_name:
-            warnings.warn('Kosyak, phone={}, service={}'.format(rapi.ctn,ser_name))
-        print('Made {} of {}'.format(sers.index(rec)+1,len(sers)))
+            if ser['name'] == ser_name:
+                result.append([ser_name, ser['removeInd']])
+        if result[-1][0] != ser_name:
+            warnings.warn('Kosyak, phone={}, service={}'.format(rapi.ctn, ser_name))
+        print('Made {} of {}'.format(sers.index(rec)+1, len(sers)))
     try:
-        ex_write(['code','y/n'],rezult,"C:/Users/админ/Desktop/remove_services.xlsx")
+        ex_write(['code', 'y/n'], result, "C:/Users/админ/Desktop/remove_services.xlsx")
     except Exception:
-        return rezult
+        return result
+
 
 def check_subscription(nums):
     rapi = Rest()
@@ -183,35 +129,39 @@ def check_subscription(nums):
             rapi.change_owner(ctn=str(phone).strip())
         except NoResultFound:
             continue
-        if len(rapi.get_subscriptions()['subscriptions'])>0:
+        if len(rapi.get_subscriptions()['subscriptions']) > 0:
             rez.append(rapi.ctn)
-        print('Ready {} of {}'.format(nums.index(phone)+1,len(nums)))
-    print(rez)
+        print('Check {} of {}'.format(nums.index(phone)+1, len(nums)))
+    print('Now count of active subscriptions = {}'.format(len(rez)))
 
-def remove_subscription(nums='C:/Users/админ/Desktop/1.txt'):
+def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
     rapi = Rest()
+    count = 0
 
     if not isinstance(nums, list):
         nums = open(nums).readlines()
-    for phone in nums:
+    for phone in nums[begin:]:
             rapi.change_owner(ctn=str(phone).strip())
             subscrs = rapi.get_subscriptions()['subscriptions']
+            count += len(subscrs)
             for el in subscrs:
-                rapi.remove_subscribtion(sId=el['id'],type=el['type'])
-            if len(subscrs)>0:
+                rapi.remove_subscribtion(sId=el['id'], type=el['type'])
+            if len(subscrs) > 0:
                 print('Made {} request(-s) for {}th of {} numbers'.format(
-                    len(subscrs),
+                    count,
                     nums.index(phone)+1,
                     len(nums)
                 ))
             else:
-                print('Didn\'t found subscriptions on {}.\n{}th of {} numbers'.format(
-                    phone,
+                print("Didn't found subscriptions on {}.\n{}th of {} numbers".format(
+                    phone.strip(),
                     nums.index(phone)+1,
                     len(nums)
                 ))
+    print('Totally made {} requests for remove subscriptions'.format(count))
+    if count != 0:
+        check_subscription(nums)
 
-    check_subscription(nums)
 
 def check_sim():
 
@@ -237,20 +187,18 @@ def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt'):
     if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y",""]:
         return
     with open(path) as file:
-        names = file.readline().split('\t')
-        names = [el.strip() for el in names]
+        names = [el.strip() for el in file.readline().split('\t')]
         values = file.readlines()[1:]
         for val in values:
             #if it possible - making digits, else stripping
             val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')]
-            items = dict(zip(names,val_u))
-            serv = session.query(c_class).filter(getattr(c_class,key) == items[key]).one()
-
+            items = dict(zip(names, val_u))
+            serv = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
             for key in items:
                 #if value not null...
                 if items[key] != "":
-                    setattr(serv,key,items[key])
-            print('Ready {} of {}'.format(values.index(val)+1,len(values)))
+                    setattr(serv, key, items[key])
+            print('Ready {} of {}'.format(values.index(val)+1, len(values)))
 
         session.commit()
         print('That\'s all')
