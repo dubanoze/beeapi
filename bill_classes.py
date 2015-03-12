@@ -7,7 +7,7 @@ from const import eko_access
 from sqlalchemy.orm.exc import MultipleResultsFound
 
 DB_DRIVER = 'pymysql'
-engine = create_engine('mysql+{DB_DRIVER}://'
+engine = create_engine('mysql+{0}://'
                        '{user}:{passwd}'
                        '@{host}:{port}/ekomobile'.format(DB_DRIVER, **eko_access))
 Base = declarative_base()
@@ -24,7 +24,7 @@ class Object(Base):
     id_field = Column(VARCHAR(length=50))  # name of class's id field
 
     properties_t = relationship('Properties', backref='a_properties',
-                                primaryjoin="Object.object_id==Properties.object_id") #related properties
+                                primaryjoin="Object.object_id==Properties.object_id") # related properties
 
 
 class Properties(Base):
@@ -45,7 +45,7 @@ class Properties(Base):
     property_id = Column(MEDIUMINT(unsigned=True), primary_key=True, nullable=False)
 
     object_id = Column(INTEGER(unsigned=True), ForeignKey('a_objects.object_id'),
-                       nullable=False)  #ID of Object
+                       nullable=False)  # ID of Object
 
     name = Column(VARCHAR(length=50), nullable=False)  # system name of property
     ru_name = Column(VARCHAR(length=64), nullable=False)  # humanity name of property
@@ -53,14 +53,14 @@ class Properties(Base):
 
     storage_table = Column(VARCHAR(length=50, unicode=True, charset='utf8'))
     indicator = Column(TINYINT(unsigned=True), nullable=False)
-    data_type = Column(ENUM('varchar', 'int', 'date', 'dec', 'text'), nullable=False)  #properties data type
+    data_type = Column(ENUM('varchar', 'int', 'date', 'dec', 'text'), nullable=False)  # properties data type
     ref_object = Column(INTEGER(unsigned=True),
                         ForeignKey('a_objects.object_id'))  # id of linked property
-    ref_object_label = Column(VARCHAR(length=50, unicode=True, charset='utf8'))  #name of showing property
+    ref_object_label = Column(VARCHAR(length=50, unicode=True, charset='utf8'))  # name of showing property
     unique = Column(TINYINT(unsigned=True),
-                    nullable=False)  #unique or not
-    description = Column(VARCHAR(length=250)) #property description
-    required = Column(TINYINT(unsigned=True), nullable=False)  #requered
+                    nullable=False)  # unique or not
+    description = Column(VARCHAR(length=250)) # property description
+    required = Column(TINYINT(unsigned=True), nullable=False)  # required
 
     object = relationship('Object', uselist=False, backref=backref('a_object'), foreign_keys=ref_object,
                           primaryjoin="Object.object_id==Properties.ref_object")
@@ -69,46 +69,46 @@ class Properties(Base):
 class ClassGetter():
 
     @staticmethod
-    def get(classname=None, class_id=None, attrib_id=None, ref=False):
+    def get(class_name=None, class_id=None, attrib_id=None, ref=False):
         def get_link_attrib(object_id, prop_id):
             rez = ClassGetter.get(class_id=object_id)
 
             # получаем аттрибуты класса
 
-        def _getattr(attrib):
+        def _getattr(attribute):
             types = {
-            'varchar': VARCHAR,
-            'int': INTEGER,
-            'date': DATETIME,
-            'dec': DECIMAL,
-            'text': LONGTEXT,
-            'raw': VARCHAR
+                'varchar': VARCHAR,
+                'int': INTEGER,
+                'date': DATETIME,
+                'dec': DECIMAL,
+                'text': LONGTEXT,
+                'raw': VARCHAR
             }
-            out_attrib = Column(attrib.name, types[attrib.data_type])
-            out_attrib.label(attrib.name+'_')
-            if attrib.required:
+            out_attrib = Column(attribute.name, types[attribute.data_type])
+            out_attrib.label(attribute.name+'_')
+            if attribute.required:
                 out_attrib.nullable = False
             else:
                 out_attrib.nullable = True
-            if attrib.ref_object:
-                '''ref = ClassGetter.get(class_id=attrib.ref_object)
-                session.query(getattr(ref, attrib.ref_object_level)).filter()'''
+            if attribute.ref_object:
                 pass
             #TODO: make returning linked object
             if ref:
                 pass
             return out_attrib
 
-        if classname:  #searching by class name
+        if class_name:  # searching by class name
             try:
-                result = session.query(Object).filter(Object.name == classname).one()
+                result = session.query(Object).filter(Object.name == class_name).one()
 
             except MultipleResultsFound:
-                print('Objects with class name="{}" > 1'.format(classname))
+                print('Objects with class name="{}" > 1'.format(class_name))
                 return
 
-        if class_id:  #searching by class id
+        elif class_id:  # searching by class id
             result = session.query(Object).filter(Object.object_id == class_id).one()
+        else:
+            raise AttributeError('Must have className or classId')
 
         attributes = {'__tablename__': result.table}
         for attrib in result.properties_t:
@@ -116,7 +116,7 @@ class ClassGetter():
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
         attributes['__table_args__' ] = {'extend_existing': True}
 
-        return type(result.name, (Base,), attributes)  #returns new class with Propeties of Object instance
+        return type(result.name, (Base,), attributes)  # returns new class with Properties of Object instance
 
 
 Base.metadata.create_all(engine)
