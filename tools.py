@@ -169,23 +169,6 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
         check_subscription(nums)
 
 
-def check_sim():
-
-    sapi = Soap()
-    nums = [[	9653471202	,	897019914051244936	,	9052555979	,	897019912102959356	],
-            [9672092303	,	897019914051244868	,	9052366533	,	897019912031511672	],
-            [	9653508738	,	897019914072751440	,	9602543269	,	897019914024242348	],
-            [	9653508915	,	897019914072751439	,	9602543267	,	897019914024242341	],
-            [	9672095910	,	897019914044848304	,	9602348121	,	897019914101216731	],
-            [	9653578212	,	897019914072751372	,	9602542729	,	897019914082848694	]]
-
-    for row in nums:
-        sapi.change_owner(ctn=row[0])
-        v_sim = sapi.get_sim_list()[0]['serialNumber']
-        sapi.change_owner(row[2])
-        r_sim = sapi.get_sim_list()[0]['serialNumber']
-        print('Old: {}\nNew:\nvirt:{}\nreal:{}'.format(row,v_sim,r_sim))
-
 def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt'):
     """required classname and key"""
 
