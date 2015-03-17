@@ -55,6 +55,7 @@ def _get_data(num=None, login=None,
 class decors():
     """class with decorators"""
 
+    @staticmethod
     def account_cheker(func):
         """check availability of login and password for checking instance of Client class"""
 
@@ -65,6 +66,7 @@ class decors():
 
         return wrapper
 
+    @staticmethod
     def total_checker(func):
         """check some things, at first, availability of  login and password, then token.
          At last, decorator check errors of returned result.
@@ -83,6 +85,7 @@ class decors():
 
         return wrapper
 
+    @staticmethod
     def unavailable(func):
         def wrapper(self):
             raise ACCESS_ERROR('Method unavailable yet')
@@ -557,6 +560,16 @@ class Soap(BaseClient):
     def get_bill_detail(self, requestId):
         params = dict(token=self.token, requestId=requestId)
         return self._get_results('getBillCharges', params)
+
+    @decors.total_checker
+    def create_detail_request(self, billDate):
+        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', CTNList=self.ctn)
+        return self._get_results('createBillCallsRequest', params)
+
+    @decors.total_checker
+    def get_detail_request(self, request):
+        params = dict(token=self.token, requestId=request)
+        return self._get_results('getBillCalls', params)
 
 
 # для обработки нескольких номеров/банов
