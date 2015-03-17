@@ -134,6 +134,11 @@ def check_subscription(nums):
         print('Check {} of {}'.format(nums.index(phone)+1, len(nums)))
     print('Now count of active subscriptions = {}'.format(len(rez)))
 
+    if len(rez) > 0:
+        print('Numbers with subscriptions:')
+        for el in rez:
+            print(str(el))
+
 def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
     rapi = Rest()
     count = 0
@@ -148,7 +153,7 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
                 rapi.remove_subscribtion(sId=el['id'], type=el['type'])
             if len(subscrs) > 0:
                 print('Made {} request(-s) for {}th of {} numbers'.format(
-                    count,
+                    len(subscrs),
                     nums.index(phone)+1,
                     len(nums)
                 ))
@@ -158,6 +163,7 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
                     nums.index(phone)+1,
                     len(nums)
                 ))
+                nums.remove(phone)
     print('Totally made {} requests for remove subscriptions'.format(count))
     if count != 0:
         check_subscription(nums)
