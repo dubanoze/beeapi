@@ -3,13 +3,13 @@ from sqlalchemy import create_engine, Column, ForeignKey
 from sqlalchemy.dialects.mysql import MEDIUMINT, DECIMAL, INTEGER, VARCHAR, DATETIME, TINYINT, ENUM, LONGTEXT
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.orm import relationship, backref
-from const import eko_access
+from const import db_access
 from sqlalchemy.orm.exc import MultipleResultsFound
 
 DB_DRIVER = 'pymysql'
 engine = create_engine('mysql+{0}://'
                        '{user}:{passwd}'
-                       '@{host}:{port}/ekomobile'.format(DB_DRIVER, **eko_access))
+                       '@{host}:{port}/ekomobile'.format(DB_DRIVER, **db_access))
 Base = declarative_base()
 
 
@@ -24,12 +24,12 @@ class Object(Base):
     id_field = Column(VARCHAR(length=50))  # name of class's id field
 
     properties_t = relationship('Properties', backref='a_properties',
-                                primaryjoin="Object.object_id==Properties.object_id") # related properties
+                                primaryjoin="Object.object_id==Properties.object_id")  # related properties
 
 
 class Properties(Base):
     """Describe table with Properties (pole-names of objects)"""
-    #TODO add other meta-attributes of object parameters
+    # TODO add other meta-attributes of object parameters
     __tablename__ = 'a_properties'
 
     def _get_val_storage(st):
@@ -59,7 +59,7 @@ class Properties(Base):
     ref_object_label = Column(VARCHAR(length=50, unicode=True, charset='utf8'))  # name of showing property
     unique = Column(TINYINT(unsigned=True),
                     nullable=False)  # unique or not
-    description = Column(VARCHAR(length=250)) # property description
+    description = Column(VARCHAR(length=250))  # property description
     required = Column(TINYINT(unsigned=True), nullable=False)  # required
 
     object = relationship('Object', uselist=False, backref=backref('a_object'), foreign_keys=ref_object,
@@ -69,7 +69,7 @@ class Properties(Base):
 class ClassGetter():
 
     @staticmethod
-    def get(class_name=None, class_id=None, attrib_id=None, ref=False):
+    def get(class_name=None, class_id=None, ref=False):
         def get_link_attrib(object_id, prop_id):
             rez = ClassGetter.get(class_id=object_id)
 
@@ -92,7 +92,7 @@ class ClassGetter():
                 out_attrib.nullable = True
             if attribute.ref_object:
                 pass
-            #TODO: make returning linked object
+            #  TODO: make returning linked object
             if ref:
                 pass
             return out_attrib
@@ -114,7 +114,7 @@ class ClassGetter():
         for attrib in result.properties_t:
             attributes[attrib.name] = _getattr(attrib)
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
-        attributes['__table_args__' ] = {'extend_existing': True}
+        attributes['__table_args__'] = {'extend_existing': True}  # allows create same objects in one runtime
 
         return type(result.name, (Base,), attributes)  # returns new class with Properties of Object instance
 

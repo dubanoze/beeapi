@@ -61,7 +61,7 @@ class decors():
 
         def wrapper(self, *args, **kwargs):
             if not self.login or not self.password:
-                self.get_account_info()
+                self._get_account_info()
             return func(self, *args, **kwargs)
 
         return wrapper
@@ -74,11 +74,13 @@ class decors():
          Optionally required available pay_type of method"""
 
         def wrapper(self, *args, **kwargs):
-            #TODO: check payment type of agree for some methods
+            # TODO: check payment type of agree for some methods
             #if self.pay_type != pay_type:
              #   raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))
+            if 's_ctn' in kwargs:
+                self.ctn = kwargs.pop('s_ctn')
             if not self.login or not self.password:
-                self.get_account_info()
+                self._get_account_info()
             if not self.token:
                 self.get_token()
             return func(self, *args, **kwargs)
@@ -174,7 +176,7 @@ class BaseClient():
             rez = self.client.service.__getattr__(url)(**par)
             return rez
 
-    def get_account_info(self):
+    def _get_account_info(self):
         """Returns login, password, ban, ban_id from BD for requested Client parameters"""
         (self.login, self.password),\
         self.ban, self.ban_id, self.pay_type = _get_data(num=self.ctn, ban=self.ban, login=self.login)
@@ -187,7 +189,7 @@ class BaseClient():
         self.ctn = ctn
         self.ban = ban
         if acc == 1:
-            self.get_account_info()
+            self._get_account_info()
         if token == 1:
             self.get_token()
 
@@ -472,11 +474,11 @@ class Soap(BaseClient):
             if input('Для postpaid только по BAN. Продолжить (y/n)? ') == 'n':
                 return
         params = {
-        'token': self.token,
-        'ctn': self.ctn,
-        'ban': self.ban,
-        'startDate': bdate,
-        'endDate': edate
+            'token': self.token,
+            'ctn': self.ctn,
+            'ban': self.ban,
+            'startDate': bdate,
+            'endDate': edate
         }
         return self._get_results('getPaymentList', params)
 
@@ -490,14 +492,14 @@ class Soap(BaseClient):
     @staticmethod
     def get_requests_st(request, phone):
         api = Soap(ctn=phone)
-        api.get_account_info()
+        api._get_account_info()
         api.get_token()
         return api.get_requests(request)[0]
 
     @staticmethod
     def replace_sim_st(phone, sim):
         api = Soap(ctn = phone)
-        api.get_account_info()
+        api._get_account_info()
         api.get_token()
         print(api.token)
         result = {'result': None, 'error': None}
@@ -597,7 +599,7 @@ class ClientStack(BaseClient):
         if self.ctnlist:
             for ctn in self.ctnlist:
                 self.ctn = ctn
-                self.get_account_info()
+                self._get_account_info()
                 if len(self.sorted_list) == 0:
                     _in(self.ctn, self.ban_id, self.ban,
                         self.login, self.password, 0)

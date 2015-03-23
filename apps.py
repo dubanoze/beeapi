@@ -527,7 +527,7 @@ def checkPP():
     for phone in ctns:
         api = Rest(ctn=phone)
         try:
-            api.get_account_info()
+            api._get_account_info()
             api.get_token()
             rez = api.get_available_pp()['availablePricePlans']
 

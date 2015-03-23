@@ -1,10 +1,23 @@
 from bill_classes import session, ClassGetter
 from client import Rest, Soap
-from xwritter import ex_write
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
 from datetime import datetime
 import warnings
+from openpyxl import Workbook
+
+
+def ex_write(values, names=['col1', 'col2', 'col3'],
+             path='result.xlsx', wsname='Sheet1'):
+    wb = Workbook(write_only=True)
+    ws = wb.create_sheet()
+    ws.title = wsname
+    ws.append(names)
+    for row in range(len(values)):
+        ws.append(values[row])
+
+    wb.save(path)
+
 
 def get_mass_serv():
 
@@ -104,7 +117,6 @@ def get_off_services():
 
     for rec in sers:
 
-
         rapi = Rest(ctn=int(rec[0]))
         ser_name = session.query(services.bee_sync).filter(services.i_id == int(rec[1]), services).one()[0]
         api_sers = rapi.get_services_list()['services']
@@ -120,7 +132,7 @@ def get_off_services():
         return result
 
 
-def check_subscription(nums):
+def check_subscription(nums, show=False, for_return=False):
     rapi = Rest()
 
     rez = []
@@ -129,8 +141,14 @@ def check_subscription(nums):
             rapi.change_owner(ctn=str(phone).strip())
         except NoResultFound:
             continue
-        if len(rapi.get_subscriptions()['subscriptions']) > 0:
+        subscrs = rapi.get_subscriptions()['subscriptions']
+        if len(subscrs) > 0:
+            if for_return:
+                to_append = [subscrs]
             rez.append(rapi.ctn)
+            if show:
+                for el in subscrs:
+                    print(el[''])
         print('Check {} of {}'.format(nums.index(phone)+1, len(nums)))
     print('Now count of active subscriptions = {}'.format(len(rez)))
 
@@ -139,7 +157,8 @@ def check_subscription(nums):
         for el in rez:
             print(str(el))
 
-def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
+
+def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=False):
     rapi = Rest()
     count = 0
 
@@ -159,32 +178,39 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0):
                 ))
             else:
                 print("Didn't found subscriptions on {}.\n{}th of {} numbers".format(
-                    phone.strip(),
+                    rapi.ctn,
                     nums.index(phone)+1,
                     len(nums)
                 ))
                 nums.remove(phone)
     print('Totally made {} requests for remove subscriptions'.format(count))
     if count != 0:
-        check_subscription(nums)
+        check_subscription(nums, show)
 
 
-def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt'):
+def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt', insert=False):
     """required classname and key"""
 
     c_class = ClassGetter.get(classname)
-    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y",""]:
+    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y", ""]:
         return
     with open(path) as file:
         names = [el.strip() for el in file.readline().split('\t')]
         values = file.readlines()[1:]
         for val in values:
-            #if it possible - making digits, else stripping
+            # if it possible - making digits, else stripping
             val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')]
             items = dict(zip(names, val_u))
-            serv = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
+            try:
+                serv = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
+            except NoResultFound:
+                if insert:
+                    # TODO inserting data
+                    to_insert = c_class()
+                    for key in items:
+                        pass
             for key in items:
-                #if value not null...
+                # if value not null...
                 if items[key] != "":
                     setattr(serv, key, items[key])
             print('Ready {} of {}'.format(values.index(val)+1, len(values)))
