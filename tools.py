@@ -5,6 +5,7 @@ from sqlalchemy import or_
 from datetime import datetime
 import warnings
 from openpyxl import Workbook
+import logging
 
 
 def ex_write(values, names=['col1', 'col2', 'col3'],
@@ -188,34 +189,70 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=
         check_subscription(nums, show)
 
 
-def update_objects(classname, key, path='C:/Users/админ/Desktop/1.txt', insert=False):
+def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'):
     """required classname and key"""
-
     c_class = ClassGetter.get(classname)
-    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y", ""]:
+    if input('First line - system names, second and other - values (Y/n)? ') not in ["y","Y", ""]:
         return
     with open(path) as file:
         names = [el.strip() for el in file.readline().split('\t')]
-        values = file.readlines()[1:]
+        ch = False
+        for name in names:
+            if name not in c_class.__attr_list__:
+                print('{} is not attribute of {} class'.format(name, classname))
+                ch = True
+        if ch:
+            return
+        values = file.readlines()
         for val in values:
             # if it possible - making digits, else stripping
             val_u = [int(el) if el.strip().isdigit() else el.strip() for el in val.split('\t')]
             items = dict(zip(names, val_u))
             try:
-                serv = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
+                try:
+                    obj = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
+                except Exception:
+                    print(items[key])
+                    raise Exception
             except NoResultFound:
-                if insert:
-                    # TODO inserting data
-                    to_insert = c_class()
-                    for key in items:
-                        pass
-            for key in items:
-                # if value not null...
-                if items[key] != "":
-                    setattr(serv, key, items[key])
+                logging.log(logging.DEBUG, 'Classname {} with id = {} not found!'.format(
+                    classname, items[key]
+                ))
+            else:
+                for key in items:
+                    # if value not null...
+                    if items[key]:
+                        setattr(obj, key, items[key])
+                        obj.date_ch = datetime.now()
+                        obj.user_id = 45
+            session.commit()
             print('Ready {} of {}'.format(values.index(val)+1, len(values)))
-
-        session.commit()
         print('That\'s all')
 
+def insert_data(classname, path, ctn=False):
+    c_class = ClassGetter.get(classname)
+    if ctn:
+        ctn = ClassGetter.get('ctn')
+    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y", ""]:
+        return
+    with open(path) as file:
+        names = [name.strip() for name in file.readline().split('\t')]
+        ch = False
+        for name in names:
+            if name not in c_class.__attr_list__:
+                print('{} is not attribute of {} class'.format(name, classname))
+                ch = True
+        if ch:
+            return
+        values = [line.rstrip().split('\t') for line in file.readlines()]
+        values = [dict(zip(names, val)) for val in values]
+        for row in values:
+            to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=45)
+            for key in row:
+                if row[key]:
+                    setattr(to_insert, key, row[key])
+            session.add(to_insert)
+            print('Inserted!')
+    session.commit()
+    print('that\'s all')
 

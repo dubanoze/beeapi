@@ -9,7 +9,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 DB_DRIVER = 'pymysql'
 engine = create_engine('mysql+{0}://'
                        '{user}:{passwd}'
-                       '@{host}:{port}/ekomobile'.format(DB_DRIVER, **db_access))
+                       '@{host}:{port}/ekomobile?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
 Base = declarative_base()
 
 
@@ -67,6 +67,8 @@ class Properties(Base):
 
 
 class ClassGetter():
+    def __repr__(self):
+        return 'ClassGetter'
 
     @staticmethod
     def get(class_name=None, class_id=None, ref=False):
@@ -111,10 +113,21 @@ class ClassGetter():
             raise AttributeError('Must have className or classId')
 
         attributes = {'__tablename__': result.table}
+        attributes['__attr_list__'] = []
         for attrib in result.properties_t:
             attributes[attrib.name] = _getattr(attrib)
+            attributes['__attr_list__'].append(attrib.name)
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
         attributes['__table_args__'] = {'extend_existing': True}  # allows create same objects in one runtime
+        attributes['user_id'] = Column('user_id', INTEGER, nullable=False)
+        attributes['date_in'] = Column('date_in', DATETIME, nullable=False)
+        attributes['date_ch'] = Column('date_ch', DATETIME, nullable=False)
+        attributes['__attr_list__'].append('user_id')
+        attributes['__attr_list__'].append('date_in')
+        attributes['__attr_list__'].append('date_ch')
+        attributes['__attr_list__'].append('i_id')
+
+
 
         return type(result.name, (Base,), attributes)  # returns new class with Properties of Object instance
 

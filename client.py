@@ -72,11 +72,10 @@ class decors():
          At last, decorator check errors of returned result.
 
          Optionally required available pay_type of method"""
-
         def wrapper(self, *args, **kwargs):
             # TODO: check payment type of agree for some methods
-            #if self.pay_type != pay_type:
-             #   raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))
+            '''if pay_type and self.pay_type != pay_type:
+            raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))'''
             if 's_ctn' in kwargs:
                 self.ctn = kwargs.pop('s_ctn')
             if not self.login or not self.password:
@@ -84,7 +83,6 @@ class decors():
             if not self.token:
                 self.get_token()
             return func(self, *args, **kwargs)
-
         return wrapper
 
     @staticmethod
@@ -290,7 +288,6 @@ class Rest(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    @decors.unavailable
     def change_notifications(self, actiontype, email, clear=True):
         if clear:
             pass
@@ -488,26 +485,6 @@ class Soap(BaseClient):
             raise PARAM_ERROR('CTN обязателен')
         params = {'ctn': self.ctn, 'serialNumber': sim}
         return self._get_results('replaceSIM', params)
-
-    @staticmethod
-    def get_requests_st(request, phone):
-        api = Soap(ctn=phone)
-        api._get_account_info()
-        api.get_token()
-        return api.get_requests(request)[0]
-
-    @staticmethod
-    def replace_sim_st(phone, sim):
-        api = Soap(ctn = phone)
-        api._get_account_info()
-        api.get_token()
-        print(api.token)
-        result = {'result': None, 'error': None}
-        try:
-            result['result'] = api.replace_sim(sim)
-        except WebFault as e:
-            result['error'] = e.fault
-        return result
 
     @decors.total_checker
     def get_unbilled_calls(self):
