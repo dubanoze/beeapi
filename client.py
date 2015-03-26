@@ -6,9 +6,9 @@ from suds.client import Client
 import re
 
 try:
-    from bill_classes import session, ClassGetter
+    from bill_classes import session_eko as session, ClassGetter
 except ImportError:
-    from .bill_classes import session, ClassGetter
+    from .bill_classes import session_eko as session, ClassGetter
 
 try:
     from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
@@ -563,7 +563,7 @@ class ClientStack(BaseClient):
         self.ban_id = None
         self.ban = None
         self.login = None
-        self.password = None
+        self.passwoаrd = None
         self.token = None
 
     def sort_by_ban(self):

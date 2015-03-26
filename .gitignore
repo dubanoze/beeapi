@@ -1,6 +1,8 @@
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm
 const.py
 .iml
+.svp
+.save
 
 ## Directory-based project format:
 .idea/

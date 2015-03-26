@@ -1,5 +1,6 @@
-from bill_classes import session, ClassGetter
-from client import Rest, Soap
+#!/usr/bin/python3.4 python
+from bill_classes import session_eko as session, ClassGetter, create_temp_table
+from client import Rest
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
 from datetime import datetime
@@ -151,7 +152,7 @@ def check_subscription(nums, show=False, for_return=False):
                 for el in subscrs:
                     print(el[''])
         print('Check {} of {}'.format(nums.index(phone)+1, len(nums)))
-    print('Now count of active subscriptions = {}'.format(len(rez)))
+    print('Now count of numbers with active subscriptions = {}'.format(len(rez)))
 
     if len(rez) > 0:
         print('Numbers with subscriptions:')
@@ -189,9 +190,11 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=
         check_subscription(nums, show)
 
 
-def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'):
+def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt', insert=False, test=False):
     """required classname and key"""
     c_class = ClassGetter.get(classname)
+    if test:
+        session = create_temp_table(c_class)
     if input('First line - system names, second and other - values (Y/n)? ') not in ["y","Y", ""]:
         return
     with open(path) as file:
@@ -199,7 +202,7 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
         ch = False
         for name in names:
             if name not in c_class.__attr_list__:
-                print('{} is not attribute of {} class'.format(name, classname))
+                warnings.warn('{} is not attribute of {} class'.format(name, classname))
                 ch = True
         if ch:
             return
@@ -210,32 +213,60 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
             items = dict(zip(names, val_u))
             try:
                 try:
-                    obj = session.query(c_class).filter(getattr(c_class, key) == items[key]).one()
+                    obj_list = session.query(c_class).filter(getattr(c_class, key) == items[key]).all()
                 except Exception:
                     print(items[key])
                     raise Exception
             except NoResultFound:
-                logging.log(logging.DEBUG, 'Classname {} with id = {} not found!'.format(
-                    classname, items[key]
-                ))
+                if not insert:
+                    logging.log(logging.DEBUG, 'Classname {} with id = {} not found!'.format(
+                        classname, items[key]
+                    ))
+                else:
+                    insert_data(classname, data=[items])
+                    print("Inserted record with key {}".format(items[key]))
             else:
-                for key in items:
-                    # if value not null...
-                    if items[key]:
-                        setattr(obj, key, items[key])
-                        obj.date_ch = datetime.now()
-                        obj.user_id = 45
+                for obj in obj_list:
+                    for col_name in items:
+                        # if value not null...
+                        if items[col_name]:
+                            setattr(obj, col_name, items[col_name])
+                            obj.date_ch = datetime.now()
+                            obj.user_id = 45
             session.commit()
             print('Ready {} of {}'.format(values.index(val)+1, len(values)))
         print('That\'s all')
+        if test:
+            def print_names(names):
+                for name in names:
+                    print(name, end="\t")
+                print()
+            rows = session.query(c_class).all()
+            print_names(names)
+            for row in rows:
+                if rows.index(row) % 20 == 0:
+                    print_names(names)
+                for name in names:
+                    print(str(getattr(row, name)), end = '\t')
+                print()
 
-def insert_data(classname, path, ctn=False):
+
+
+def insert_data(classname, path=None, ctn=False, data=None, test=False):
     c_class = ClassGetter.get(classname)
-    if ctn:
-        ctn = ClassGetter.get('ctn')
-    if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y", ""]:
-        return
-    with open(path) as file:
+    if test:
+        session = create_temp_table(c_class)
+    else:
+        session = globals()['session']
+    if not path and not data:
+        raise AttributeError("Required file or data")
+    if data and not isinstance(data, list):
+        data = [data]
+
+    elif not data:
+        if input('First line - system names, second and other - values (Y/n)? ') not in ["y,Y", ""]:
+            return
+        file = open(path)
         names = [name.strip() for name in file.readline().split('\t')]
         ch = False
         for name in names:
@@ -244,15 +275,29 @@ def insert_data(classname, path, ctn=False):
                 ch = True
         if ch:
             return
-        values = [line.rstrip().split('\t') for line in file.readlines()]
-        values = [dict(zip(names, val)) for val in values]
-        for row in values:
-            to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=45)
-            for key in row:
-                if row[key]:
-                    setattr(to_insert, key, row[key])
-            session.add(to_insert)
-            print('Inserted!')
+        data = [line.rstrip().split('\t') for line in file.readlines()]
+        data = [dict(zip(names, val)) for val in data]
+    for row in data:
+        to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=45)
+        for key in row:
+            if row[key]:
+                setattr(to_insert, key, row[key])
+        session.add(to_insert)
+        print('Inserted {} of {}'.format(data.index(row), len(data)))
+    print('Commiting...')
     session.commit()
-    print('that\'s all')
+    if test:
+        def print_names(names):
+            for name in names:
+                print(name, end="\t")
+            print()
+        rows = session.query(c_class).all()
+        print_names(names)
+        for row in rows:
+            if rows.index(row) % 20 == 0:
+                print_names(names)
+            for name in names:
+                print(str(getattr(row, name)), end = '\t')
+            print()
 
+    print('that\'s all')

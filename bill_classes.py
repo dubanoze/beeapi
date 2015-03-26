@@ -4,12 +4,18 @@ from sqlalchemy.dialects.mysql import MEDIUMINT, DECIMAL, INTEGER, VARCHAR, DATE
 from sqlalchemy.orm.session import sessionmaker
 from sqlalchemy.orm import relationship, backref
 from const import db_access
-from sqlalchemy.orm.exc import MultipleResultsFound
+from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
 DB_DRIVER = 'pymysql'
-engine = create_engine('mysql+{0}://'
+eko_engine = create_engine('mysql+{0}://'
                        '{user}:{passwd}'
                        '@{host}:{port}/ekomobile?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
+
+
+spicin_engine = create_engine('mysql+{0}://'
+                       '{user}:{passwd}'
+                       '@{host}:{port}/spicin?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
+
 Base = declarative_base()
 
 
@@ -79,12 +85,12 @@ class ClassGetter():
 
         def _getattr(attribute):
             types = {
-                'varchar': VARCHAR,
+                'varchar': VARCHAR(length=255),
                 'int': INTEGER,
                 'date': DATETIME,
                 'dec': DECIMAL,
                 'text': LONGTEXT,
-                'raw': VARCHAR
+                'raw': VARCHAR(length=255)
             }
             out_attrib = Column(attribute.name, types[attribute.data_type])
             out_attrib.label(attribute.name+'_')
@@ -101,14 +107,17 @@ class ClassGetter():
 
         if class_name:  # searching by class name
             try:
-                result = session.query(Object).filter(Object.name == class_name).one()
+                result = session_eko.query(Object).filter(Object.name == class_name).one()
 
             except MultipleResultsFound:
                 print('Objects with class name="{}" > 1'.format(class_name))
                 return
+            except NoResultFound:
+                print('No objects with class name="{}" > 1'.format(class_name))
+                return
 
         elif class_id:  # searching by class id
-            result = session.query(Object).filter(Object.object_id == class_id).one()
+            result = session_eko.query(Object).filter(Object.object_id == class_id).one()
         else:
             raise AttributeError('Must have className or classId')
 
@@ -118,7 +127,8 @@ class ClassGetter():
             attributes[attrib.name] = _getattr(attrib)
             attributes['__attr_list__'].append(attrib.name)
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
-        attributes['__table_args__'] = {'extend_existing': True}  # allows create same objects in one runtime
+        attributes['__table_args__'] = {'extend_existing': True,  # allows create same objects in one runtime
+                                        'prefixes': ["TEMPORARY"]}  # always creating temporary table
         attributes['user_id'] = Column('user_id', INTEGER, nullable=False)
         attributes['date_in'] = Column('date_in', DATETIME, nullable=False)
         attributes['date_ch'] = Column('date_ch', DATETIME, nullable=False)
@@ -126,12 +136,20 @@ class ClassGetter():
         attributes['__attr_list__'].append('date_in')
         attributes['__attr_list__'].append('date_ch')
         attributes['__attr_list__'].append('i_id')
+        attributes['prefixes'] = ["TEMPORARY"]
 
 
 
         return type(result.name, (Base,), attributes)  # returns new class with Properties of Object instance
 
 
-Base.metadata.create_all(engine)
-Session = sessionmaker(bind=engine)
-session = Session()
+#Base.metadata.create_all(engine)
+Session_eko = sessionmaker(bind=eko_engine)
+session_eko = Session_eko()
+
+Session_spicin = sessionmaker(bind=spicin_engine)
+session_spicin = Session_spicin()
+
+def create_temp_table(obj):
+    obj.__table__.create(spicin_engine)
+    return session_spicin
