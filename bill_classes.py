@@ -6,15 +6,17 @@ from sqlalchemy.orm import relationship, backref
 from const import db_access
 from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 
+from errors import DatabaseError
+
 DB_DRIVER = 'pymysql'
 eko_engine = create_engine('mysql+{0}://'
-                       '{user}:{passwd}'
-                       '@{host}:{port}/ekomobile?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
+                           '{user}:{passwd}'
+                           '@{host}:{port}/ekomobile?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
 
 
 spicin_engine = create_engine('mysql+{0}://'
-                       '{user}:{passwd}'
-                       '@{host}:{port}/spicin?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
+                              '{user}:{passwd}'
+                              '@{host}:{port}/spicin?charset=cp1251'.format(DB_DRIVER, **db_access), encoding='cp1251')
 
 Base = declarative_base()
 
@@ -38,15 +40,14 @@ class Properties(Base):
     # TODO add other meta-attributes of object parameters
     __tablename__ = 'a_properties'
 
-    def _get_val_storage(st):
+    '''def _get_val_storage(st):
         st = st
         if st == 0:
             return 'historic'
         elif st == 1:
             return "nonhistoric"
         elif st == 2:
-            return "cached"
-
+            return "cached"'''
 
     property_id = Column(MEDIUMINT(unsigned=True), primary_key=True, nullable=False)
 
@@ -55,7 +56,7 @@ class Properties(Base):
 
     name = Column(VARCHAR(length=50), nullable=False)  # system name of property
     ru_name = Column(VARCHAR(length=64), nullable=False)  # humanity name of property
-    storage = Column(TINYINT(unsigned=True), nullable=False)  # 0-nonhistoric; 1-historic; 2-cached
+    # storage = Column(TINYINT(unsigned=True), nullable=False)  # 0-nonhistoric; 1-historic; 2-cached
 
     storage_table = Column(VARCHAR(length=50, unicode=True, charset='utf8'))
     indicator = Column(TINYINT(unsigned=True), nullable=False)
@@ -73,16 +74,12 @@ class Properties(Base):
 
 
 class ClassGetter():
+    # TODO add querying methods
     def __repr__(self):
         return 'ClassGetter'
 
     @staticmethod
     def get(class_name=None, class_id=None, ref=False):
-        def get_link_attrib(object_id, prop_id):
-            rez = ClassGetter.get(class_id=object_id)
-
-            # получаем аттрибуты класса
-
         def _getattr(attribute):
             types = {
                 'varchar': VARCHAR(length=255),
@@ -99,8 +96,11 @@ class ClassGetter():
             else:
                 out_attrib.nullable = True
             if attribute.ref_object:
-                pass
-            #  TODO: make returning linked object
+                out_attrib.referrer = attribute.ref_object
+                out_attrib.referrer_name = attribute.ref_object_label
+            else:
+                out_attrib.referrer = None
+                out_attrib.referrer_name = None
             if ref:
                 pass
             return out_attrib
@@ -110,25 +110,23 @@ class ClassGetter():
                 result = session_eko.query(Object).filter(Object.name == class_name).one()
 
             except MultipleResultsFound:
-                print('Objects with class name="{}" > 1'.format(class_name))
-                return
+                raise DatabaseError('Objects with class name="{}" > 1'.format(class_name))
             except NoResultFound:
-                print('No objects with class name="{}" > 1'.format(class_name))
-                return
+                raise DatabaseError('No objects with class name="{}"'.format(class_name))
 
         elif class_id:  # searching by class id
             result = session_eko.query(Object).filter(Object.object_id == class_id).one()
         else:
             raise AttributeError('Must have className or classId')
 
-        attributes = {'__tablename__': result.table}
+        attributes = dict(__tablename__=result.table)
         attributes['__attr_list__'] = []
         for attrib in result.properties_t:
             attributes[attrib.name] = _getattr(attrib)
             attributes['__attr_list__'].append(attrib.name)
         attributes[result.id_field] = Column(result.id_field, INTEGER, nullable=False, primary_key=True)
         attributes['__table_args__'] = {'extend_existing': True,  # allows create same objects in one runtime
-                                        'prefixes': ["TEMPORARY"]}  # always creating temporary table
+                                        'mysql_prefixes': ["TEMPORARY"]}  # always creating temporary table
         attributes['user_id'] = Column('user_id', INTEGER, nullable=False)
         attributes['date_in'] = Column('date_in', DATETIME, nullable=False)
         attributes['date_ch'] = Column('date_ch', DATETIME, nullable=False)
@@ -136,20 +134,53 @@ class ClassGetter():
         attributes['__attr_list__'].append('date_in')
         attributes['__attr_list__'].append('date_ch')
         attributes['__attr_list__'].append('i_id')
-        attributes['prefixes'] = ["TEMPORARY"]
-
-
 
         return type(result.name, (Base,), attributes)  # returns new class with Properties of Object instance
 
 
-#Base.metadata.create_all(engine)
 Session_eko = sessionmaker(bind=eko_engine)
 session_eko = Session_eko()
 
 Session_spicin = sessionmaker(bind=spicin_engine)
 session_spicin = Session_spicin()
 
+
 def create_temp_table(obj):
     obj.__table__.create(spicin_engine)
     return session_spicin
+
+
+def show_all_values(obj, select, where=None, session=session_eko):
+    # TODO Refactoring, optimization
+    # TODO Realize it like method of `bill_classes` class
+    if not isinstance(where, dict):
+        raise DatabaseError('WHERE statement must be dict, expected {}'.format(type(where)))
+    if not isinstance(select, tuple) and not isinstance(select, list):
+        raise DatabaseError('SELECT statement must be list or tuple, expected {}'.format(type(select)))
+
+    select_objects = dict()
+    for column in select:
+        '''try:
+            select_objects[column] = ClassGetter.get(class_id=getattr(obj, column).referrer)
+        except AttributeError:
+            print("object {} unavailable".format(column))'''
+
+        select_objects[column] = ClassGetter.get(class_id=getattr(obj, column).referrer)
+
+    result_list = session.query(obj).filter_by(**where).all()
+
+    for result in result_list:
+        for column in select_objects:
+            if getattr(result, column):
+                ref = session.query(select_objects[column]).filter_by(i_id=getattr(result, column)).one()
+                setattr(result,
+                        column + '_refer',
+                        ref
+                        )
+                setattr(result,
+                        column + '_ref_label',
+                        getattr(
+                            ref, getattr(obj, column).referrer_name
+                        )
+                        )
+    return result_list
