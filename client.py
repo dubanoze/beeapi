@@ -5,15 +5,11 @@ from sqlalchemy.orm.exc import MultipleResultsFound
 from suds.client import Client
 import re
 
-try:
-    from bill_classes import session_eko as session, ClassGetter
-except ImportError:
-    from .bill_classes import session_eko as session, ClassGetter
 
-try:
-    from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
-except ImportError:
-    from .errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
+from bill_classes import session_eko as session, ClassGetter
+
+
+from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
 
 from suds import WebFault
 _ctn = ClassGetter.get('ctn')
@@ -542,7 +538,7 @@ class Soap(BaseClient):
 
     @decors.total_checker
     def create_detail_request(self, billDate):
-        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', CTNList=self.ctn)
+        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', CTNList=self.ctn, ban=self.ban)
         return self._get_results('createBillCallsRequest', params)
 
     @decors.total_checker
@@ -563,7 +559,7 @@ class ClientStack(BaseClient):
         self.ban_id = None
         self.ban = None
         self.login = None
-        self.passwoаrd = None
+        self.passwoанrd = None
         self.token = None
 
     def sort_by_ban(self):
