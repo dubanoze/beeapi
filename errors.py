@@ -1,3 +1,5 @@
+from sqlalchemy.exc import SQLAlchemyError
+
 class API_ERROR(Exception):
     """base error"""
     pass
@@ -24,4 +26,7 @@ class PARAM_ERROR(API_ERROR):
 
 
 class API_BASE_ERROR(API_ERROR):
+    pass
+
+class DatabaseError(SQLAlchemyError):
     pass
