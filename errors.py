@@ -1,31 +1,31 @@
 from sqlalchemy.exc import SQLAlchemyError
 
-class API_ERROR(Exception):
+class APIError(Exception):
     """base error"""
     pass
 
 
-class ACCESS_ERROR(API_ERROR):
+class AccessError(APIError):
     """base access error"""
     pass
 
 
-class INIT_ERROR(ACCESS_ERROR):
+class InitializationError(AccessError):
     """initialize error"""
     pass
 
 
-class AUTH_ERROR(ACCESS_ERROR):
+class AuthorizationError(AccessError):
     """authorize error"""
     pass
 
 
-class PARAM_ERROR(API_ERROR):
+class ParameterError(APIError):
     """not requered parameter"""
     pass
 
 
-class API_BASE_ERROR(API_ERROR):
+class APIBaseExc(APIError):
     pass
 
 class DatabaseError(SQLAlchemyError):

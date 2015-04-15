@@ -1,5 +1,5 @@
 #!/usr/bin/python3.4 python
-from bill_classes import session_eko as session, ClassGetter, create_temp_table
+from models import get_session, get_class, show_all_values, Properties
 from client import Rest
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
@@ -7,7 +7,9 @@ from datetime import datetime
 import warnings
 from openpyxl import Workbook
 import logging
+from errors import DatabaseError
 
+session = get_session('ekomobile')
 
 def ex_write(values, names=['col1', 'col2', 'col3'],
              path='result.xlsx', wsname='Sheet1'):
@@ -24,10 +26,10 @@ def ex_write(values, names=['col1', 'col2', 'col3'],
 def get_mass_serv():
 
     rapi = Rest()
-    services = ClassGetter.get('service_fx')
-    agree = ClassGetter.get('operator_agree')
-    ctn = ClassGetter.get('ctn')
-    btp = ClassGetter.get('operator_tarif')
+    services = get_class('service_fx')
+    agree = get_class('operator_agree')
+    ctn = get_class('ctn')
+    btp = get_class('operator_tarif')
     banlist = session.query(agree.i_id).filter(agree.moboperator == 1, agree.payment_type == 0,
                                                agree.discontinued == 0).all()
     banlist = [el[0] for el in banlist]
@@ -62,8 +64,8 @@ def get_mass_serv():
 
 def check_bills():
     """проверка наличия услуг в биллинге"""
-    ser = ClassGetter.get('hstr_service_fx')
-    service_fx = ClassGetter.get('service_fx')
+    ser = get_class('hstr_service_fx')
+    service_fx = get_class('service_fx')
 
     file = open('C:/Users/админ/Desktop/1.txt').readlines()
     rez_f = []
@@ -108,8 +110,8 @@ def check_bills():
 
 def get_off_services():
 
-    services = ClassGetter.get('service_fx')
-    hstr_services = ClassGetter.get('hstr_service_fx')
+    services = get_class('service_fx')
+    hstr_services = get_class('hstr_service_fx')
     result = []
     sers = session.query(hstr_services.object_id, hstr_services.service_id).\
         filter(or_(not hstr_services.deactivated,
@@ -145,8 +147,6 @@ def check_subscription(nums, show=False, for_return=False):
             continue
         subscrs = rapi.get_subscriptions()['subscriptions']
         if len(subscrs) > 0:
-            if for_return:
-                to_append = [subscrs]
             rez.append(rapi.ctn)
             if show:
                 for el in subscrs:
@@ -168,10 +168,14 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=
         nums = open(nums).readlines()
     for phone in nums[begin:]:
             rapi.change_owner(ctn=str(phone).strip())
-            subscrs = rapi.get_subscriptions()['subscriptions']
+            try:
+                subscrs = rapi.get_subscriptions()['subscriptions']
+            except KeyError:
+                print(rapi.get_subscriptions())
             count += len(subscrs)
             for el in subscrs:
-                rapi.remove_subscribtion(sId=el['id'], type=el['type'])
+                rapi.remove_subscription(
+                    subscription_id=el['id'], subscription_type=el['type'])
             if len(subscrs) > 0:
                 print('Made {} request(-s) for {}th of {} numbers'.format(
                     len(subscrs),
@@ -189,12 +193,10 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=
     if count != 0:
         check_subscription(nums, show)
 
-
+# TODO refactoring and optimization
 def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt', insert=False, test=False):
     """required classname and key"""
-    c_class = ClassGetter.get(classname)
-    if test:
-        session = create_temp_table(c_class)
+    c_class = get_class(classname)
     if input('First line - system names, second and other - values (Y/n)? ') not in ["y","Y", ""]:
         return
     with open(path) as file:
@@ -240,22 +242,23 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
             def print_names(names):
                 for name in names:
                     print(name, end="\t")
-                print()
+                print('\n-------------------------------------------------------------------------------------------')
             rows = session.query(c_class).all()
             print_names(names)
             for row in rows:
                 if rows.index(row) % 20 == 0:
                     print_names(names)
+
                 for name in names:
                     print(str(getattr(row, name)), end = '\t')
                 print()
 
 
-
+# TODO refactoring and optimization
 def insert_data(classname, path=None, ctn=False, data=None, test=False):
-    c_class = ClassGetter.get(classname)
+    c_class = get_class(classname)
     if test:
-        session = create_temp_table(c_class)
+        raise AttributeError('Unavailable')
     else:
         session = globals()['session']
     if not path and not data:
@@ -278,19 +281,28 @@ def insert_data(classname, path=None, ctn=False, data=None, test=False):
         data = [line.rstrip().split('\t') for line in file.readlines()]
         data = [dict(zip(names, val)) for val in data]
     for row in data:
+        if row == '\n':
+            continue
         to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=45)
         for key in row:
             if row[key]:
                 setattr(to_insert, key, row[key])
         session.add(to_insert)
         print('Inserted {} of {}'.format(data.index(row), len(data)))
-    print('Commiting...')
+    print('Commit...')
     session.commit()
     if test:
+        objects = dict()
+        for name in names:
+            try:
+                objects[name] = get_class(name)
+            except DatabaseError:
+                pass
         def print_names(names):
             for name in names:
                 print(name, end="\t")
-            print()
+            print('\n-------------------------------------------------------------------------------------------')
+
         rows = session.query(c_class).all()
         print_names(names)
         for row in rows:
@@ -301,3 +313,18 @@ def insert_data(classname, path=None, ctn=False, data=None, test=False):
             print()
 
     print('that\'s all')
+
+
+def check_referrers(classname, value):
+    obj = get_class(classname)
+    ref_proprs = session.query(Properties).filter_by(ref_object=obj.object_id).all()
+    for property in ref_proprs:
+        referrer = get_class(class_id=property.object_id, prop_id=property.ref_object_label_property)
+        finded_links = session.query(referrer).filter_by(i_id = value).all()
+        for link in finded_links:
+            try:
+                print(link.i_id, getattr(link, getattr(property, "ref_object_label")), link.__tablename__)
+            except Exception:
+                pass
+            finally:
+                return referrer, obj, link, property

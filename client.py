@@ -1,58 +1,47 @@
 from grab import Grab
 from json import loads, dumps
 from datetime import datetime
-from sqlalchemy.orm.exc import MultipleResultsFound
 from suds.client import Client
+from warnings import warn
 import re
 
 
-from bill_classes import session_eko as session, ClassGetter
+from models import get_session, get_class
 
 
-from errors import INIT_ERROR, PARAM_ERROR, ACCESS_ERROR
+from errors import InitializationError, ParameterError, AccessError
 
-from suds import WebFault
-_ctn = ClassGetter.get('ctn')
-_agree = ClassGetter.get('operator_agree')
-_account = ClassGetter.get('account_info')
+session = get_session('ekomobile')
 
 
-def _get_data(num=None, login=None,
-              ban_id=None, ban=None,
-              ctn_b=_ctn, agree_b=_agree,
-              account_b=_account, i_n=0):
+def _get_data(num=None, login=None, ban=None):
     """Method returns login, password, ban and ban_id from eko_DB
     Can getting phone or/and oan
     """
-    pay_type = None
+    ctns = get_class('ctn')
+    agrees = get_class('operator_agree')
+    accounts = get_class('account_info')
+
     if not num and not ban and not login:
-        raise INIT_ERROR('Ни один обязательный параметр (num,ban,login) не был передан')
+        raise InitializationError('Ни один обязательный параметр (num,ban,login) не был передан')
     if num:
-        ban_id = session.query(ctn_b.operator_agree).filter(ctn_b.msisdn == num).one()[0]
-        ban, pay_type = session.query(agree_b.oan, agree_b.payment_type).filter(agree_b.i_id == ban_id).one()
+        ban_id = ctns.select(session=session, where={'msisdn': num}).operator_agree
+        agree = agrees.select(session=session, where={'i_id': ban_id})
 
-    if ban:
-        ban_id, pay_type = session.query(agree_b.i_id, agree_b.payment_type).filter(agree_b.oan == ban).one()
-    if ban_id is not None:
-
-        query = session.query(account_b.login, account_b.password).filter(account_b.operator_agree == ban_id,
-                                                                          account_b.access_type == 1)
-        try:
-
-            return query.one(), ban, ban_id, pay_type
-        except MultipleResultsFound:
-
-            return query.all()[i_n], ban, ban_id, pay_type
-    if login:
-        return session.query(account_b.login, account_b.password).filter(account_b.login == login,
-                                                                         account_b.access_type == 1).one(), ban
+    elif ban:
+        agree = agrees.select(session=session, where={'oan': ban})
+    if agree is not None:
+        account = accounts.select(session=session, where={'operator_agree': agree.i_id,
+                                                          'access_type': 1})
+    if account:
+        return account.login, account.password, agree.oan
 
 
 class decors():
     """class with decorators"""
 
     @staticmethod
-    def account_cheker(func):
+    def account_checker(func):
         """check availability of login and password for checking instance of Client class"""
 
         def wrapper(self, *args, **kwargs):
@@ -70,10 +59,11 @@ class decors():
          Optionally required available pay_type of method"""
         def wrapper(self, *args, **kwargs):
             # TODO: check payment type of agree for some methods
-            '''if pay_type and self.pay_type != pay_type:
-            raise PARAM_ERROR('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))'''
+            """if pay_type and self.pay_type != pay_type:
+            raise ParameterError('Method can call only {} payment type.'.format(self.__pay_types[pay_type]))"""
             if 's_ctn' in kwargs:
                 self.ctn = kwargs.pop('s_ctn')
+                self.login = self.password = self.token = None
             if not self.login or not self.password:
                 self._get_account_info()
             if not self.token:
@@ -82,13 +72,13 @@ class decors():
         return wrapper
 
     @staticmethod
-    def unavailable(func):
-        def wrapper(self):
-            raise ACCESS_ERROR('Method unavailable yet')
+    def unavailable(*args, **kwargs):
+        def wrapper(*args, **kwargs):
+            raise AccessError('Method unavailable yet')
         return wrapper
 
 
-class BaseClient():
+class BaseClient(object):
     """Base API-Client class"""
     def __init__(self, ctn=None, ban=None, ban_id=None,
                  login=None, password=None, pay_type=None,
@@ -148,12 +138,12 @@ class BaseClient():
                     self.client.setup(headers=headers)
                 link = self.base_url + method_name
             else:
-                raise PARAM_ERROR("Невозможный тип запроса")
+                raise ParameterError("Невозможный тип запроса")
             return link
         elif self.api_type == "SOAP":
-            raise ACCESS_ERROR
+            raise AccessError
 
-    def _get_results(self, url, par=None,timeout=30):
+    def _get_results(self, url, par=None, timeout=30):
         """Returns results of requested method.
         'par' using by SOAP Client"""
 
@@ -165,30 +155,29 @@ class BaseClient():
             except TypeError:
                 return loads(self.client.response.body.decode())
 
-        #TODO: dictionary for results of SOAP-requests
+        # TODO: dictionary for results of SOAP-requests
         elif self.api_type == "SOAP":
             rez = self.client.service.__getattr__(url)(**par)
             return rez
 
     def _get_account_info(self):
         """Returns login, password, ban, ban_id from BD for requested Client parameters"""
-        (self.login, self.password),\
-        self.ban, self.ban_id, self.pay_type = _get_data(num=self.ctn, ban=self.ban, login=self.login)
+        self.login, self.password, self.ban = _get_data(num=self.ctn, ban=self.ban, login=self.login)
 
-    def change_owner(self, ctn=None, ban=None, acc=1, token=1):
+    def change_owner(self, ctn=None, ban=None, acc=True, token=True):
         """Changing owner (ctn, ban) of your Client instance.
         Also, gets account_info and token, if gets same parameters"""
         for el in ['ctn', 'ban', 'login', 'password']:
             self.__setattr__(el, None)
         self.ctn = ctn
         self.ban = ban
-        if acc == 1:
+        if acc:
             self._get_account_info()
-        if token == 1:
+        if token:
             self.get_token()
 
     def exchange_attrs(self, client):
-        """getting attrs of another Client instance.
+        """getting attributes of another Client instance.
         Must get SOAP Client, REST Client or BASE Client instance."""
         self.token = client.token
         self.ban = client.ban
@@ -198,11 +187,12 @@ class BaseClient():
         self.ban_id = client.ban_id
         self.pay_type = client.pay_type
 
-    def _chk_datetime(self, dt):
+    @staticmethod
+    def _check_datetime(dt):
         """Checking format of datetime attr. Returns datetime in ISO"""
         if not re.search(pattern=r'\d{4}-\d{2}-\d{2}', string=dt):
             if not re.search(pattern=r'\d{2}.\d{2}.\d{4}', string=dt):
-                raise PARAM_ERROR('Неверный формат даты')
+                raise ParameterError('Неверный формат даты')
             else:
                 return datetime.strptime(dt, "%d.%m.%Y").isoformat()
         else:
@@ -221,7 +211,7 @@ class Rest(BaseClient):
                          base_url='https://my.beeline.ru/api/1.0',
                          api_instance=api_instance)
 
-    @decors.account_cheker
+    @decors.account_checker
     def get_token(self, opt=1):
         """Returns token, which must requires on all of API methods"""
         url = self._get_link('/auth', {'login': self.login, 'password': self.password})
@@ -278,11 +268,13 @@ class Rest(BaseClient):
         url = self._get_link('/info/blackList/numbers', {'ctn': self.ctn})
         return self._get_results(url)
 
+    @decors.unavailable
     @decors.total_checker
     def get_notifications(self):
         url = self._get_link('/setting/notifications', {})
         return self._get_results(url)
 
+    @decors.unavailable
     @decors.total_checker
     def change_notifications(self, actiontype, email, clear=True):
         if clear:
@@ -304,6 +296,7 @@ class Rest(BaseClient):
         url = self._get_link('/info/serviceList', {'ctn': self.ctn})
         return self._get_results(url)
 
+    @decors.unavailable
     @decors.total_checker
     def get_request_status(self, requests):
         """Checking status of requests"""
@@ -321,7 +314,7 @@ class Rest(BaseClient):
         """Creates detail request. Returns requestId"""
         if not re.search(pattern=r'\d{4}-\d{2}-\d{2}', string=period):
             if not re.search(pattern=r'\d{2}.\d{2}.\d{4}', string=period):
-                raise PARAM_ERROR('Неверный формат даты, нужен гггг-мм-дд или дд.мм.гггг')
+                raise ParameterError('Неверный формат даты, нужен гггг-мм-дд или дд.мм.гггг')
             else:
                 bill_date = datetime.strptime(period, "%d.%m.%Y").isoformat()
         else:
@@ -335,6 +328,7 @@ class Rest(BaseClient):
         url = self._get_link('/info/serviceParams', {'serviceName': service})
         return self._get_results(url)
 
+    @decors.unavailable
     @decors.total_checker
     def activate_service(self, service):
         """Activating services. Can insert date of auto-off"""
@@ -352,7 +346,7 @@ class Rest(BaseClient):
 
     @decors.total_checker
     def get_packs(self):
-        """Returns current instanse of packs for the phone"""
+        """Returns current instance of packs for the phone"""
         url = self._get_link('/info/rests', {'ctn': self.ctn})
         return self._get_results(url)
 
@@ -372,12 +366,12 @@ class Rest(BaseClient):
         return self._get_results(url)
 
     @decors.total_checker
-    def remove_subscribtion(self, sId=None, type=None):
+    def remove_subscription(self, subscription_id=None, subscription_type=None):
         params = {'ctn': self.ctn}
-        if sId:
-            params['subscriptionId'] = sId
-        if type:
-            params['type'] = type
+        if subscription_id:
+            params['subscriptionId'] = subscription_id
+        if subscription_type:
+            params['type'] = subscription_type
         url = self._get_link('/request/subscription/remove', params)
         return self._get_results(url)
 
@@ -402,6 +396,8 @@ class Rest(BaseClient):
             params = {'ctn': self.ctn}
         elif level == 'ban':
             params = {'ban': self.ban}
+        else:
+            raise AttributeError('`level` required only \'ctn\' or \'ban\'')
         url = self._get_link('/info/postpaidBalance', params)
         return self._get_results(url)
 
@@ -409,13 +405,6 @@ class Rest(BaseClient):
     def change_price_plan(self, pp):
         url = self._get_link('/request/changePricePlan', {'ctn': self.ctn, 'pricePlan': pp})
         return self._get_results(url)
-
-    @decors.total_checker
-    def get_prepaid_detail(self, startDate, endDate):
-        url = self._get_link('/request/prepaidDetail', {'ctn': self.ctn,
-                                                           'startDate': startDate,
-                                                           'endDate': endDate,
-                                                           'reportType': 'xls'})
 
 
 class Soap(BaseClient):
@@ -426,16 +415,13 @@ class Soap(BaseClient):
             ctn=ctn, ban=ban, ban_id=ban_id, login=login, password=password, token=token, pay_type=pay_type,
             api_type='SOAP', base_url='https://my.beeline.ru/api/SubscriberService?WSDL', client=Client,
             api_instance=api_instance)
-        try:
-            self.client = self.client(self.base_url, timeout=600)
-        except Exception:
-            self.client(self.base_url)
+        self.client = self.client(self.base_url, timeout=600)
 
-    @decors.account_cheker
+    @decors.account_checker
     def get_token(self):
         self.token = Client('https://my.beeline.ru/api/AuthService?WSDL').service.auth(**{
-        'login': self.login,
-        'password': self.password
+            'login': self.login,
+            'password': self.password
         })
 
     @decors.total_checker
@@ -453,16 +439,16 @@ class Soap(BaseClient):
         return self._get_results('getServicesList', params)
 
     @decors.total_checker
-    def get_payments_list(self, bdate=None, edate=None, level='ctn'):
-        if not bdate:
-            print('За текущий день')
-            bdate = datetime.now().isoformat()
+    def get_payments_list(self, start_date=None, end_date=None, level='ctn'):
+        if not start_date:
+            warn('За текущий день')
+            start_date = datetime.now().isoformat()
         else:
-            bdate = self._chk_datetime(bdate)
-        if not edate:
-            edate = bdate
+            start_date = self._check_datetime(start_date)
+        if not end_date:
+            end_date = start_date
         else:
-            edate = self._chk_datetime(edate)
+            end_date = self._check_datetime(end_date)
         if level == 'ctn':
             if input('Для postpaid только по BAN. Продолжить (y/n)? ') == 'n':
                 return
@@ -470,15 +456,15 @@ class Soap(BaseClient):
             'token': self.token,
             'ctn': self.ctn,
             'ban': self.ban,
-            'startDate': bdate,
-            'endDate': edate
+            'startDate': start_date,
+            'endDate': end_date
         }
         return self._get_results('getPaymentList', params)
 
     @decors.total_checker
     def replace_sim(self, sim):
         if not self.ctn:
-            raise PARAM_ERROR('CTN обязателен')
+            raise ParameterError('CTN обязателен')
         params = {'ctn': self.ctn, 'serialNumber': sim}
         return self._get_results('replaceSIM', params)
 
@@ -488,24 +474,26 @@ class Soap(BaseClient):
         return self._get_results('getUnbilledCallsList', params)
 
     @decors.total_checker
-    def get_services_list_paged(self, page, level='ctn'):
+    def get_services_list_paged(self, page, per_page=50, level='ctn'):
         params = dict(token=self.token, ban=self.ban,
-                      page=page, ctnAmountPerPage=50)
+                      page=page, ctnAmountPerPage=per_page)
         if level == 'ctn' and self.ctn:
             params['ctn'] = self.ctn
         return self._get_results('getServicesListPaged', params)
 
-
     @decors.total_checker
-    def add_del_soc(self, soc, dir, act=None, deact=None):
-        params = dict(token=self.token, ctn=self.ctn, soc=soc, inclusionType=dir, effDate=act, expDate=deact)
+    def add_del_soc(self, soc, action_type, eff_date=None, exp_date=None):
+        params = dict(token=self.token, ctn=self.ctn, soc=soc,
+                      inclusionType=action_type, effDate=eff_date, expDate=exp_date)
         return self._get_results('addDelSOC', params)
 
     @decors.total_checker
     def get_requests(self, req=None, bdt=None, edt=None, page=1, rec=50):
-        params = dict(token=self.token, requestId=str(req), login=self.login, page=page, hash=12321321321, recordsPerPage=rec)
+        params = dict(token=self.token, requestId=str(req),
+                      login=self.login, page=page,
+                      hash=12321321321, recordsPerPage=rec)
         if req:
-            params['requestId']=str(req)
+            params['requestId'] = str(req)
         elif bdt and edt:
             params['startDate'] = bdt
             params['endDate'] = edt
@@ -527,62 +515,22 @@ class Soap(BaseClient):
         return self._get_results('getSIMList', params)
 
     @decors.total_checker
-    def create_bill_detail(self, billDate):
-        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', ban=self.ban)
+    def create_bill_detail(self, bill_date):
+        params = dict(token=self.token, billDate=self._check_datetime(bill_date) + '.000', ban=self.ban)
         return self._get_results('createBillChargesRequest', params)
 
     @decors.total_checker
-    def get_bill_detail(self, requestId):
-        params = dict(token=self.token, requestId=requestId)
+    def get_bill_detail(self, request_id):
+        params = dict(token=self.token, requestId=request_id)
         return self._get_results('getBillCharges', params)
 
     @decors.total_checker
-    def create_detail_request(self, billDate):
-        params = dict(token=self.token, billDate=self._chk_datetime(billDate) + '.000', CTNList=self.ctn, ban=self.ban)
+    def create_detail_request(self, bill_date):
+        params = dict(token=self.token, billDate=self._check_datetime(bill_date) + '.000',
+                      CTNList=self.ctn, ban=self.ban)
         return self._get_results('createBillCallsRequest', params)
 
     @decors.total_checker
     def get_detail_request(self, request):
         params = dict(token=self.token, requestId=request)
         return self._get_results('getBillCalls', params)
-
-
-# для обработки нескольких номеров/банов
-class ClientStack(BaseClient):
-
-    @decors.unavailable
-    def __init__(self, ctnlist=None, banlist=None, api_type=None):
-        self.ctnlist = ctnlist
-        self.banlist = banlist
-        self.api_type = api_type
-        self.sorted_list = []
-        self.ban_id = None
-        self.ban = None
-        self.login = None
-        self.passwoанrd = None
-        self.token = None
-
-    def sort_by_ban(self):
-        def _in(ctn, ban_id, ban, login, password, i):
-            self.sorted_list.insert(i,
-                                    {'ctn': ctn, 'ban_id': ban_id, 'ban': ban,
-                                     'login': login, 'password': password
-                                    })
-
-        if self.ctnlist:
-            for ctn in self.ctnlist:
-                self.ctn = ctn
-                self._get_account_info()
-                if len(self.sorted_list) == 0:
-                    _in(self.ctn, self.ban_id, self.ban,
-                        self.login, self.password, 0)
-                    continue
-                for el in self.sorted_list:
-                    if self.ban_id >= int(el['ban_id']):
-                        _in(self.ctn, self.ban_id, self.ban,
-                            self.login, self.password, self.sorted_list.index(el) - 1)
-                        continue
-                    else:
-                        _in(self.ctn, self.ban_id, self.ban,
-                            self.login, self.password, self.sorted_list.index(el))
-                        break

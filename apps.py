@@ -1,7 +1,7 @@
 from xwritter import ex_write
 from const import desktop as d
 from const import conn_eko as conn
-from bill_classes import session, class_getter
+from models import session, class_getter
 import time
 import re
 import sys
@@ -11,7 +11,7 @@ from grab.error import GrabTimeoutError
 
 from soap_api import bee_api
 from client import Rest
-from errors import PARAM_ERROR, API_BASE_ERROR
+from errors import ParameterError, APIBaseExc
 
 
 class BAN():
@@ -212,7 +212,7 @@ def paym(*args):
     rez = []
     date = input('Введите дату, за которую нужны платежи в формате дд.мм ')
     if not re.match(r'^\d{2}[.]\d{2}$', date):
-        raise PARAM_ERROR('Неверно введена дата')
+        raise ParameterError('Неверно введена дата')
     else:
         date = date.split('.')
     for el in [147807239,
@@ -252,7 +252,7 @@ def make_services(*args):
         print('готово')
     else:
         print('ошибка')
-        raise PARAM_ERROR('Подключить/отключить только A/D!')
+        raise ParameterError('Подключить/отключить только A/D!')
 
     print('Готово, запрос {},логин {}, token {}'.format(req, api.login, api.token))
     return req, api.login, api.token
@@ -314,7 +314,7 @@ def mass_services():
                 print('{} услугу {} на номер {}'.format(act, service, ctn))
                 req = make_services([ctn, service, act, str(datetime.now().date())])[0]
                 print('Готово')
-            except API_BASE_ERROR:
+            except APIBaseExc:
                 return 'действие с услугой недоступно'
             else:
                 api = bee_api(ctn=ctn)
@@ -348,14 +348,14 @@ def mass_services():
             print('Разблокируем номер {}'.format(ctn))
             try:
                 req = api.restoreCTN()
-            except API_BASE_ERROR:
+            except APIBaseExc:
                 print(db_status)
                 try:
                     rez = go(ctn, service, act)
                     print('Блокируем {} обратно'.format(ctn))
                     try:
                         req = api.suspendCTN()
-                    except API_BASE_ERROR:
+                    except APIBaseExc:
                         print(db_status)
                         return 'ошибка изменения статуса'
                     pre_rez = api.getRequestList_one(req=req)
@@ -374,7 +374,7 @@ def mass_services():
             print('Блокируем {} обратно'.format(ctn))
             try:
                 req = api.suspendCTN()
-            except API_BASE_ERROR:
+            except APIBaseExc:
                 print(db_status)
                 return 'ошибка изменения статуса'
             pre_rez = api.getRequestList_one(req=req)
@@ -432,7 +432,7 @@ def get():
             while 1:
                 try:
                     rez = api.getBillCharges(req=req)
-                except API_BASE_ERROR:
+                except APIBaseExc:
                     print('Не готово, подождем...')
                     time.sleep(20)
                     continue

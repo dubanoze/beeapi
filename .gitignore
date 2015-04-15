@@ -1,5 +1,7 @@
 # Covers JetBrains IDEs: IntelliJ, RubyMine, PhpStorm, AppCode, PyCharm
 const.py
+test.py
+.swp
 .iml
 .svp
 .save
