@@ -5,19 +5,17 @@ from suds.client import Client
 from warnings import warn
 import re
 
-
 from models import get_session, get_class
 
-
 from errors import InitializationError, ParameterError, AccessError
-
-session = get_session('ekomobile')
 
 
 def _get_data(num=None, login=None, ban=None):
     """Method returns login, password, ban and ban_id from eko_DB
     Can getting phone or/and oan
     """
+    session = get_session('ekomobile')
+
     ctns = get_class('ctn')
     agrees = get_class('operator_agree')
     accounts = get_class('account_info')
@@ -33,6 +31,7 @@ def _get_data(num=None, login=None, ban=None):
     if agree is not None:
         account = accounts.select(session=session, where={'operator_agree': agree.i_id,
                                                           'access_type': 1})
+    session.close()
     if account:
         return account.login, account.password, agree.oan
 
@@ -268,7 +267,6 @@ class Rest(BaseClient):
         url = self._get_link('/info/blackList/numbers', {'ctn': self.ctn})
         return self._get_results(url)
 
-    @decors.unavailable
     @decors.total_checker
     def get_notifications(self):
         url = self._get_link('/setting/notifications', {})
@@ -513,6 +511,11 @@ class Soap(BaseClient):
         if level == 'ctn' and self.ctn:
             params['ctn'] = self.ctn
         return self._get_results('getSIMList', params)
+
+    @decors.total_checker
+    def get_ban_info(self):
+        params = dict(login=self.login, token=self.token)
+        return self._get_results('getBANInfoList', params)
 
     @decors.total_checker
     def create_bill_detail(self, bill_date):

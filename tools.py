@@ -9,7 +9,7 @@ from openpyxl import Workbook
 import logging
 from errors import DatabaseError
 
-session = get_session('ekomobile')
+
 
 def ex_write(values, names=['col1', 'col2', 'col3'],
              path='result.xlsx', wsname='Sheet1'):
@@ -24,6 +24,7 @@ def ex_write(values, names=['col1', 'col2', 'col3'],
 
 
 def get_mass_serv():
+    session = get_session('ekomobile')
 
     rapi = Rest()
     services = get_class('service_fx')
@@ -54,6 +55,7 @@ def get_mass_serv():
 
     names = ['Номер', 'Тариф', 'Техкод услуги', 'Название услуги', 'АП услуги']
 
+    session.close()
     try:
         ex_write(names, result, path='C:/Users/ГостЪ/Desktop/services.xlsx')
     except ValueError:
@@ -66,6 +68,7 @@ def check_bills():
     """проверка наличия услуг в биллинге"""
     ser = get_class('hstr_service_fx')
     service_fx = get_class('service_fx')
+    session = get_session('ekomobile')
 
     file = open('C:/Users/админ/Desktop/1.txt').readlines()
     rez_f = []
@@ -106,10 +109,11 @@ def check_bills():
                                              ser.deactivated > datetime.now())).all()
         if len(hstr) != 0:
             print(el, ' не отклчена, должна быть отключена')
+    session.close()
 
 
 def get_off_services():
-
+    session = get_session('ekomobile')
     services = get_class('service_fx')
     hstr_services = get_class('hstr_service_fx')
     result = []
@@ -130,6 +134,7 @@ def get_off_services():
         if result[-1][0] != ser_name:
             warnings.warn('Kosyak, phone={}, service={}'.format(rapi.ctn, ser_name))
         print('Made {} of {}'.format(sers.index(rec)+1, len(sers)))
+    session.close()
     try:
         ex_write(['code', 'y/n'], result, "C:/Users/админ/Desktop/remove_services.xlsx")
     except Exception:
@@ -137,6 +142,7 @@ def get_off_services():
 
 
 def check_subscription(nums, show=False, for_return=False):
+
     rapi = Rest()
 
     rez = []
@@ -194,11 +200,15 @@ def remove_subscription(nums='C:/Users/админ/Desktop/1.txt', begin=0, show=
         check_subscription(nums, show)
 
 # TODO refactoring and optimization
-def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt', insert=False, test=False):
+def update_objects(classname, key, u_id, path='C:/Users/админ/Desktop/1.txt', insert=False, test=False):
     """required classname and key"""
+
+    session = get_session('ekomobile')
     c_class = get_class(classname)
-    if input('First line - system names, second and other - values (Y/n)? ') not in ["y","Y", ""]:
+    if input('First line - system names, second and other - values (Y/n)? ') not in ["y", "Y", ""]:
         return
+    if test:
+        raise AttributeError('Unavailable')
     with open(path) as file:
         names = [el.strip() for el in file.readline().split('\t')]
         ch = False
@@ -217,7 +227,7 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
                 try:
                     obj_list = session.query(c_class).filter(getattr(c_class, key) == items[key]).all()
                 except Exception:
-                    print(items[key])
+                    print(items.keys())
                     raise Exception
             except NoResultFound:
                 if not insert:
@@ -233,10 +243,12 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
                         # if value not null...
                         if items[col_name]:
                             setattr(obj, col_name, items[col_name])
-                            obj.date_ch = datetime.now()
-                            obj.user_id = 45
+                    obj.date_ch = datetime.now()
+                    obj.user_id = u_id
             session.commit()
-            print('Ready {} of {}'.format(values.index(val)+1, len(values)))
+            ind = values.index(val)+1
+            if ind % 100 == 0 and ind != 0:
+                print('Ready {} of {}'.format(values.index(val)+1, len(values)))
         print('That\'s all')
         if test:
             def print_names(names):
@@ -252,15 +264,16 @@ def update_objects(classname, key=None, path='C:/Users/админ/Desktop/1.txt'
                 for name in names:
                     print(str(getattr(row, name)), end = '\t')
                 print()
+    session.close()
 
 
 # TODO refactoring and optimization
-def insert_data(classname, path=None, ctn=False, data=None, test=False):
+def insert_data(classname, u_id, path=None, ctn=False, data=None, test=False):
+
+    session = get_session('ekomobile')
     c_class = get_class(classname)
     if test:
         raise AttributeError('Unavailable')
-    else:
-        session = globals()['session']
     if not path and not data:
         raise AttributeError("Required file or data")
     if data and not isinstance(data, list):
@@ -278,17 +291,19 @@ def insert_data(classname, path=None, ctn=False, data=None, test=False):
                 ch = True
         if ch:
             return
-        data = [line.rstrip().split('\t') for line in file.readlines()]
+        data = [line.rstrip().split('\t') for line in file.readlines() if line.strip()]
         data = [dict(zip(names, val)) for val in data]
     for row in data:
         if row == '\n':
             continue
-        to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=45)
+        to_insert = c_class(date_in=datetime.now(), date_ch=datetime.now(), user_id=u_id)
         for key in row:
             if row[key]:
                 setattr(to_insert, key, row[key])
         session.add(to_insert)
-        print('Inserted {} of {}'.format(data.index(row), len(data)))
+        ind = data.index(row) + 1
+        if ind % 100 == 0 and ind != 0:
+            print('Inserted {} of {}'.format(ind, len(data)))
     print('Commit...')
     session.commit()
     if test:
@@ -298,6 +313,7 @@ def insert_data(classname, path=None, ctn=False, data=None, test=False):
                 objects[name] = get_class(name)
             except DatabaseError:
                 pass
+
         def print_names(names):
             for name in names:
                 print(name, end="\t")
@@ -311,20 +327,29 @@ def insert_data(classname, path=None, ctn=False, data=None, test=False):
             for name in names:
                 print(str(getattr(row, name)), end = '\t')
             print()
-
+    session.close()
     print('that\'s all')
 
 
-def check_referrers(classname, value):
-    obj = get_class(classname)
-    ref_proprs = session.query(Properties).filter_by(ref_object=obj.object_id).all()
-    for property in ref_proprs:
-        referrer = get_class(class_id=property.object_id, prop_id=property.ref_object_label_property)
-        finded_links = session.query(referrer).filter_by(i_id = value).all()
-        for link in finded_links:
-            try:
-                print(link.i_id, getattr(link, getattr(property, "ref_object_label")), link.__tablename__)
-            except Exception:
-                pass
-            finally:
-                return referrer, obj, link, property
+if __name__ == "__main__":
+    login = input('Логин? ')
+    password = input('Пароль? ')
+    session = get_session('ekomobile')
+    user = get_class('user')
+    try:
+        u_id = session.query(user.i_id).filter_by(login=login, password=password).one()
+    except NoResultFound:
+        input("Неверные данные для входа")
+        exit()
+    ch = int(input('Обновляем(1) или заливаем новое(2)? '))
+    if ch not in [1, 2]:
+        input('Нет такого варианта')
+        exit()
+    file = input("Введите имя файла (с .txt на конце) ")
+    classname = input('Имя класса? ')
+    if ch == 1:
+        key = input('К чему привязываемся? ')
+        update_objects(classname, key, u_id, file)
+    elif ch == 2:
+        insert_data(classname, u_id, file)
+

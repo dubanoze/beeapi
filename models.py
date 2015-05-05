@@ -8,6 +8,7 @@ from sqlalchemy.orm.exc import MultipleResultsFound, NoResultFound
 import logging
 from errors import DatabaseError
 import warnings
+from sqlalchemy.pool import NullPool
 
 Base = declarative_base()
 
@@ -16,14 +17,14 @@ def get_engine(db_name):
     db_driver = 'pymysql'
     return create_engine('mysql+{0}://'
                          '{user}:{passwd}'
-                         '@{host}:{port}/{1}?charset=cp1251'.format(db_driver, db_name, **db_access), encoding='cp1251')
+                         '@{host}:{port}/{1}?charset=cp1251'.format(db_driver, db_name, **db_access),
+                         encoding='cp1251', poolclass=NullPool)
 
 
 def get_session(db_name):
     engine = get_engine(db_name)
     session = sessionmaker(bind=engine)
     return session()
-
 
 class Object(Base):
     """Describe table with objects (other tables)"""
@@ -94,7 +95,7 @@ class BaseBill(object):
         ch = False
         for attr in attributes:
             if str(attr) not in cls.__attr_list__:
-                logging.error(msg='{} is not a property of {}'.format(attr, cls.classname))
+                logging.error(msg='`{}` is not a property of `{}`'.format(attr, cls.classname))
                 ch = True
         if ch:
             raise AttributeError('Has some unresolved attributes')
@@ -110,10 +111,13 @@ class BaseBill(object):
 
         cls._check_attributes(where.keys())
         result_set = session.query(cls).filter_by(**where)
-        if cnt == 1:
-            result_set = result_set[0]
-        else:
-            result_set = result_set[begin: begin + cnt]
+        try:
+            if cnt == 1:
+                result_set = result_set[0]
+            else:
+                result_set = result_set[begin: begin + cnt]
+        except IndexError:
+            raise NoResultFound
         if not all_references:
             return result_set
         else:
@@ -270,8 +274,10 @@ def get_class(class_name=None, class_id=None):
         if attributes[attrib.name].referrer:
             attributes['__referrer_list__'][attrib.name] = attributes[attrib.name].referrer
 
+    classname = result.name
+    session.close()
 
-    return type(result.name, (Base, BaseBill), attributes)  # returns new class with Properties of Object instance
+    return type(classname, (Base, BaseBill), attributes)  # returns new class with Properties of Object instance
 
 
 def show_all_values(obj, select, session, where=None):
