@@ -23,8 +23,13 @@ def _get_data(num=None, login=None, ban=None):
     if not num and not ban and not login:
         raise InitializationError('Ни один обязательный параметр (num,ban,login) не был передан')
     if num:
-        ban_id = ctns.select(session=session, where={'msisdn': num}).operator_agree
-        agree = agrees.select(session=session, where={'i_id': ban_id})
+        try:
+            ban_id = ctns.select(session=session, where={'msisdn': num}).operator_agree
+            agree = agrees.select(session=session, where={'i_id': ban_id})
+        except Exception:
+            print(num)
+            ban_id = session.query(ctns).filter_by(msisdn=num).first().operator_agree
+            agree = session.query(agrees).filter_by(i_id=ban_id).first()
 
     elif ban:
         agree = agrees.select(session=session, where={'oan': ban})

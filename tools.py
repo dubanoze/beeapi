@@ -1,6 +1,6 @@
 #!/usr/bin/python3.4 python
 from models import get_session, get_class, show_all_values, Properties
-from client import Rest
+from client import Rest, Soap
 from sqlalchemy.orm.exc import NoResultFound
 from sqlalchemy import or_
 from datetime import datetime
@@ -329,6 +329,33 @@ def insert_data(classname, u_id, path=None, ctn=False, data=None, test=False):
             print()
     session.close()
     print('that\'s all')
+
+def get_detail(beg=0):
+    ctn = get_class('ctn')
+    ses = get_session('ekomobile')
+    ctn_list = ses.query(ctn).filter(ctn.operator_agree.in_([404,405])).all()
+    result_detail = []
+    null_phones = []
+    for phone in ctn_list[beg:]:
+        try:
+            api = Soap(ctn=phone.msisdn)
+            dt = api.get_current_detail()
+        except Exception:
+            print("Последний - {}, {}".format(phone.msisdn, ctn_list.index(phone)))
+            print(null_phones)
+            return
+
+        if len(dt) == 0:
+            null_phones.append(phone.msisdn)
+        result_detail.extend(dt)
+        print("Ready {} of {}".format(ctn_list.index(phone)+1, len(ctn_list)))
+    print(null_phones)
+    ex_write(values=result_detail,
+             names=["Дата", "Исходящий", "Входящий", "Тип соединения", "Описание звонка", "Трафик", "Стоимость", "Длительность"],
+             path="/home/spicin/dt.xlsx")
+
+
+
 
 
 if __name__ == "__main__":
