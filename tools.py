@@ -354,7 +354,22 @@ def get_detail(beg=0):
              names=["Дата", "Исходящий", "Входящий", "Тип соединения", "Описание звонка", "Трафик", "Стоимость", "Длительность"],
              path="/home/spicin/dt.xlsx")
 
-
+def get_as_info():
+    sapi = Soap(login="A390906555", password="B39090600")
+    sapi.ban = sapi.get_ban_info()[0].ban
+    print('get ban info')
+    ctn_list = sapi.get_ctn_info(level='ban')
+    print('get ctn list')
+    write_list = []
+    for phone in ctn_list:
+        write_list.append([
+            str(phone.ctn[1:]),
+            str(phone.status),
+            str(phone.statusDate),
+            str(phone.pricePlan)]
+        )
+        print('get {} of {}'.format(ctn_list.index(phone)+1, len(ctn_list)))
+    ex_write(values=write_list, names=['msisdn', 'status', 'status_date', 'price_plan', 'price_plan_time'], path='/home/spicin/as.xlsx')
 
 
 

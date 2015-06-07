@@ -190,6 +190,8 @@ class BaseClient(object):
         self.password = client.password
         self.ban_id = client.ban_id
         self.pay_type = client.pay_type
+        if self.api_type == 'REST':
+            self.client.setup(cookies={'token': self.token})
 
     @staticmethod
     def _check_datetime(dt):
